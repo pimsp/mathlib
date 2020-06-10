@@ -371,38 +371,39 @@ end
 
 /-- prehaar -/
 -- in notes: K₀ compact with non-empty interior, U open containing 1, K compact
-def prehaar (K₀ U K : set G) : ℝ := (index K U : ℝ) / index K₀ U
+def prehaar (K₀ U : set G) (K : compacts G) : ℝ := (index K.1 U : ℝ) / index K₀ U
 
-lemma prehaar_nonneg {K₀ U K : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
-  (hU : (interior U).nonempty) : 0 ≤ prehaar K₀ U K :=
+lemma prehaar_nonneg {K₀ U : set G} {K : compacts G} (h1K₀ : compact K₀)
+  (h2K₀ : (interior K₀).nonempty) (hU : (interior U).nonempty) : 0 ≤ prehaar K₀ U K :=
 by { apply div_nonneg; norm_cast, apply zero_le, exact index_pos h1K₀ h2K₀ hU }
 
-lemma prehaar_le_index {K₀ U K : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
-   (hK : compact K) (hU : (interior U).nonempty) : prehaar K₀ U K ≤ index K K₀ :=
+lemma prehaar_le_index {K₀ U : set G} {K : compacts G} (h1K₀ : compact K₀)
+  (h2K₀ : (interior K₀).nonempty) (hU : (interior U).nonempty) : prehaar K₀ U K ≤ index K.1 K₀ :=
 begin
   unfold prehaar, rw [div_le_iff]; norm_cast,
-  { apply le_index_mul h1K₀ h2K₀ hK hU },
+  { apply le_index_mul h1K₀ h2K₀ K.2 hU },
   { exact index_pos h1K₀ h2K₀ hU }
 end
 
 /-- haar_product -/
-def haar_product (K₀ : set G) : set (set G → ℝ) := -- maybe compacts
-set.pi { K | compact K } (λ K, Icc 0 $ index K K₀)
+def haar_product (K₀ : set G) : set (compacts G → ℝ) :=
+set.pi set.univ (λ K, Icc 0 $ index K.1 K₀)
 
 lemma prehaar_mem_haar_product {K₀ U : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
   (hU : (interior U).nonempty) : prehaar K₀ U ∈ haar_product K₀ :=
-by { intros K hK, rw [mem_Icc],
-     exact ⟨prehaar_nonneg h1K₀ h2K₀ hU, prehaar_le_index h1K₀ h2K₀ hK hU⟩ }
+by { rintro ⟨K, hK⟩ h2K, rw [mem_Icc],
+     exact ⟨prehaar_nonneg h1K₀ h2K₀ hU, prehaar_le_index h1K₀ h2K₀ hU⟩ }
 
 /-- C -/
-def CC (K₀ V : set G) : set (set G → ℝ) :=
+def CC (K₀ V : set G) : set (compacts G → ℝ) :=
 closure $ prehaar K₀ '' { U : set G | U ⊆ V } -- maybe opens
 
 
 lemma nonempty_Inter_CC {K₀ : set G} :
   (⋂ (V : set G) (hV : is_open V), CC K₀ V).nonempty :=
 begin
-  sorry
+  have := @compact.elim_finite_subfamily_closed,
+
 end
 
 #check @compact.elim_finite_subfamily_closed
