@@ -48,14 +48,17 @@ def mk_hom : G →* (quotient N) :=
 @[simp]
 lemma coe_fun_mk_hom : ⇑(@mk_hom _ _ N hN) = quotient_group.mk := rfl
 
-@[simp, to_additive quotient_add_group.ker_mk]
-lemma ker_mk : (mk_hom N).ker = N :=
+@[to_additive]
+lemma mk_eq_one_iff (x : G) : (x : quotient N) = (1 : quotient N) ↔ x ∈ N :=
 begin
-  ext g,
-  rw [monoid_hom.mem_ker, eq_comm],
-  show (((1 : G) : quotient_group.quotient N)) = g ↔ _,
+  rw eq_comm,
+  show (((1 : G) : quotient N)) = x ↔ _,
   rw [quotient_group.eq, one_inv, one_mul],
 end
+
+@[simp, to_additive quotient_add_group.ker_mk]
+lemma ker_mk : (mk_hom N).ker = N :=
+subgroup.ext (λ x, mk_eq_one_iff N x)
 end
 
 @[to_additive quotient_add_group.add_comm_group]
@@ -106,10 +109,41 @@ lemma lift_mk' (g : G) :
   lift N φ HN (mk g : Q) = φ g := rfl
 
 @[to_additive quotient_add_group.map]
-def map (M : subgroup H) [M.normal] (f : G →* H) (h : ↑N ⊆ f ⁻¹' M) :
+def map (M : subgroup H) [M.normal] (f : G →* H) (h : N ≤ M.comap f) :
   quotient N →* quotient M :=
 quotient_group.lift N ((mk_hom M).comp f)
     (λ x hx, quotient_group.eq.2 (by simpa [M.inv_mem_iff] using h hx))
+
+@[to_additive, simp]
+lemma map_mk (M : subgroup H) [M.normal] (f : G →* H) (h : N ≤ M.comap f) (g : G) :
+  map M f h g = f g := rfl
+
+@[to_additive, simp]
+lemma map_mk' (M : subgroup H) [M.normal] (f : G →* H) (h : N ≤ M.comap f) (g : G) :
+  map M f h (mk g) = f g := rfl
+
+/-- A group isomorphism `f : G ≃* H` maps to an isomorphism of a quotient
+  if it sends the subgroup to the corresponding subgroup. -/
+@[to_additive quotient_add_group.map_equiv, irreducible]
+def map_equiv (M : subgroup H) [M.normal] (f : G ≃* H) (h : N = M.comap f.to_monoid_hom) :
+  quotient N ≃* quotient M :=
+{ inv_fun := map N f.symm.to_monoid_hom (le_of_eq (by simp [h, subgroup.comap_comap])),
+  left_inv := λ x, by { apply quotient_group.induction_on x, intro z, simp, refl },
+  right_inv := λ x, by { apply quotient_group.induction_on x, intro z, simp, refl },
+  ..map M f.to_monoid_hom (le_of_eq h) }
+
+local attribute [semireducible] map_equiv
+
+@[to_additive, simp]
+lemma map_equiv_apply (M : subgroup H) [M.normal] (f : G ≃* H) (h : N = M.comap f.to_monoid_hom)
+  (x : quotient N) :
+  map_equiv M f h x = map M f.to_monoid_hom (le_of_eq h) x :=
+rfl
+
+@[to_additive, simp]
+lemma map_equiv_symm (M : subgroup H) [M.normal] (f : G ≃* H) (h : N = M.comap f.to_monoid_hom) :
+  (map_equiv M f h).symm = map_equiv _ f.symm (by simp [h, subgroup.comap_comap]) :=
+rfl
 
 open function monoid_hom
 
