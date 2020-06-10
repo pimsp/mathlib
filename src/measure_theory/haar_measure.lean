@@ -159,13 +159,21 @@ end homeomorph
 section
 variables {α : Type*} {β : Type*} [topological_space α] [topological_space β]
 
+/-- The compact sets of a topological space. See also `nonempty_compacts`. -/
 def compacts (α : Type*) [topological_space α] : set (set α) := { s : set α | compact s }
+/-- The open neighborhoods of a point. See also `opens`. -/
+def open_nhds_of {α : Type*} [topological_space α] (x : α) : set (set α) :=
+{ s : set α | is_open s ∧ x ∈ s }
+
+variables {ι : Type*} {π : ι → Type*} [∀i, topological_space (π i)]
+
+lemma compact_univ_pi {s : Πi:ι, set (π i)} (h : ∀i, compact (s i)) : compact (set.pi set.univ s) :=
+by { convert compact_pi_infinite h, simp only [pi, forall_prop_of_true, mem_univ] }
 
 end
 
 variables {α : Type u} [measurable_space α]
           {β : Type v} [measurable_space β]
-
 
 section
 variables [topological_space α]  [borel_space α]
@@ -395,22 +403,32 @@ by { rintro ⟨K, hK⟩ h2K, rw [mem_Icc],
      exact ⟨prehaar_nonneg h1K₀ h2K₀ hU, prehaar_le_index h1K₀ h2K₀ hU⟩ }
 
 /-- C -/
-def CC (K₀ V : set G) : set (compacts G → ℝ) :=
-closure $ prehaar K₀ '' { U : set G | U ⊆ V } -- maybe opens
+def CC (K₀ : set G) (V : open_nhds_of (1 : G)) : set (compacts G → ℝ) :=
+closure $ prehaar K₀ '' { U : set G | U ⊆ V ∧ is_open U ∧ (1 : G) ∈ U }
 
-
-lemma nonempty_Inter_CC {K₀ : set G} :
-  (⋂ (V : set G) (hV : is_open V), CC K₀ V).nonempty :=
+lemma nonempty_Inter_CC {K₀ : set G}  (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty) :
+  (haar_product K₀ ∩ ⋂ (V : open_nhds_of (1 : G)), CC K₀ V).nonempty :=
 begin
-  have := @compact.elim_finite_subfamily_closed,
-
+  have : compact (haar_product K₀), { apply compact_univ_pi, intro K, apply compact_Icc },
+  rw [← ne_empty_iff_nonempty],
+  have := compact.elim_finite_subfamily_closed this (CC K₀) (λ s, is_closed_closure), apply mt this,
+  rintro ⟨t, h1t⟩, rw [← not_nonempty_iff_eq_empty] at h1t, apply h1t,
+  let V₀ := ⋂ (V ∈ t), (V : open_nhds_of 1).1,
+  have h1V₀ : is_open V₀,
+  { apply is_open_bInter, apply finite_mem_finset, rintro ⟨V, hV⟩ h2V, exact hV.1 },
+  have h2V₀ : (1 : G) ∈ V₀, { rw mem_Inter, rintro ⟨V, hV⟩, rw mem_Inter, intro h2V, exact hV.2 },
+  refine ⟨prehaar K₀ V₀, _⟩,
+  split,
+  { apply prehaar_mem_haar_product h1K₀ h2K₀, use 1, rwa interior_eq_of_open h1V₀ },
+  { rw mem_Inter, rintro ⟨V, hV⟩, rw mem_Inter, intro h2V, apply subset_closure,
+    apply mem_image_of_mem, rw [mem_set_of_eq],
+    exact ⟨subset.trans (Inter_subset _ ⟨V, hV⟩) (Inter_subset _ h2V), h1V₀, h2V₀⟩ },
 end
 
-#check @compact.elim_finite_subfamily_closed
-#check @compact_pi_infinite
-
-/-- the Haar measure -/
-def haar_measure' (K₀ V : set G) : ℝ := sorry
+/-- the Haar measure on compact sets -/
+def haar_measure' {K₀ : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
+  (K : compacts G) : ℝ :=
+classical.some (nonempty_Inter_CC h1K₀ h2K₀) K
 
 theorem exists_left_haar_measure [locally_compact_space G] :
   ∃ (μ : measure G), is_left_haar_measure μ :=
