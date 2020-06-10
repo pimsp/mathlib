@@ -191,16 +191,16 @@ eq_of_nhds_eq_nhds $ λ x, by
 end topological_group
 
 section quotient_topological_group
-variables [topological_space α] [group α] [topological_group α] (N : set α) [normal_subgroup N]
+variables [topological_space α] [group α] [topological_group α] (N : subgroup α) [hN : N.normal]
 
 @[to_additive]
-instance {α : Type u} [group α] [topological_space α] (N : set α) [normal_subgroup N] :
+instance {α : Type u} [group α] [topological_space α] (N : subgroup α) [N.normal] :
   topological_space (quotient_group.quotient N) :=
 by dunfold quotient_group.quotient; apply_instance
 
 open quotient_group
 @[to_additive quotient_add_group_saturate]
-lemma quotient_group_saturate {α : Type u} [group α] (N : set α) [normal_subgroup N] (s : set α) :
+lemma quotient_group_saturate {α : Type u} [group α] (N : subgroup α) [N.normal] (s : set α) :
   (coe : α → quotient N) ⁻¹' ((coe : α → quotient N) '' s) = (⋃ x : N, (λ y, y*x.1) '' s) :=
 begin
   ext x,
@@ -208,11 +208,12 @@ begin
   split,
   { exact assume ⟨a, a_in, h⟩, ⟨⟨_, h⟩, a, a_in, mul_inv_cancel_left _ _⟩ },
   { exact assume ⟨⟨i, hi⟩, a, ha, eq⟩,
-      ⟨a, ha, by simp only [eq.symm, (mul_assoc _ _ _).symm, inv_mul_cancel_left, hi]⟩ }
+      ⟨a, ha, by simpa [← eq] using hi⟩ }
 end
 
+include hN
 @[to_additive]
-lemma quotient_group.open_coe : is_open_map (coe : α →  quotient N) :=
+lemma quotient_group.open_coe : is_open_map (coe : α → quotient N) :=
 begin
   intros s s_op,
   change is_open ((coe : α →  quotient N) ⁻¹' (coe '' s)),

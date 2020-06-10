@@ -124,18 +124,21 @@ instance orbit_fintype (b : β) [fintype α] [decidable_eq β] :
 variable (α)
 
 /-- The stabilizer of an element under an action, i.e. what sends the element to itself. -/
-def stabilizer (b : β) : set α :=
-{x : α | x • b = b}
+def monoid_stabilizer (b : β) : submonoid α :=
+{ carrier := {x : α | x • b = b},
+  mul_mem' := λ a a' (ha : a • b = b) (hb : a' • b = b),
+    show (a * a') • b = b, by rw [←smul_smul, hb, ha],
+  one_mem' := one_smul _ b }
 
 variable {α}
 
-@[simp] lemma mem_stabilizer_iff {b : β} {x : α} :
-  x ∈ stabilizer α b ↔ x • b = b := iff.rfl
+@[simp] lemma mem_monoid_stabilizer_iff {b : β} {x : α} :
+  x ∈ monoid_stabilizer α b ↔ x • b = b := iff.rfl
 
 variables (α) (β)
 
 /-- The set of elements fixed under the whole action. -/
-def fixed_points : set β := {b : β | ∀ x, x ∈ stabilizer α b}
+def fixed_points : set β := {b : β | ∀ x, x ∈ monoid_stabilizer α b}
 
 variables {α} (β)
 
@@ -145,7 +148,7 @@ variables {α} (β)
 lemma mem_fixed_points' {b : β} : b ∈ fixed_points α β ↔
   (∀ b', b' ∈ orbit α b → b' = b) :=
 ⟨λ h b h₁, let ⟨x, hx⟩ := mem_orbit_iff.1 h₁ in hx ▸ h x,
-λ h b, mem_stabilizer_iff.2 (h _ (mem_orbit _ _))⟩
+λ h b, mem_monoid_stabilizer_iff.2 (h _ (mem_orbit _ _))⟩
 
 /-- An action of `α` on `β` and a monoid homomorphism `γ → α` induce an action of `γ` on `β`. -/
 def comp_hom [monoid γ] (g : γ → α) [is_monoid_hom g] :
@@ -153,11 +156,6 @@ def comp_hom [monoid γ] (g : γ → α) [is_monoid_hom g] :
 { smul := λ x b, (g x) • b,
   one_smul := by simp [is_monoid_hom.map_one g, mul_action.one_smul],
   mul_smul := by simp [is_monoid_hom.map_mul g, mul_action.mul_smul] }
-
-instance (b : β) : is_submonoid (stabilizer α b) :=
-{ one_mem := one_smul _ b,
-  mul_mem := λ a a' (ha : a • b = b) (hb : a' • b = b),
-    by rw [mem_stabilizer_iff, ←smul_smul, hb, ha] }
 
 end mul_action
 
@@ -200,12 +198,10 @@ lemma orbit_eq_iff {a b : β} :
       conv {to_rhs, rw [← hy, ← mul_one y, ← inv_mul_self x, ← mul_assoc,
         mul_action.mul_smul, hx]}⟩⟩)⟩
 
-instance (b : β) : is_subgroup (stabilizer α b) :=
-{ one_mem := mul_action.one_smul _,
-  mul_mem := λ x y (hx : x • b = b) (hy : y • b = b),
-    show (x * y) • b = b, by rw mul_action.mul_smul; simp *,
-  inv_mem := λ x (hx : x • b = b), show x⁻¹ • b = b,
-    by rw [← hx, ← mul_action.mul_smul, inv_mul_self, mul_action.one_smul, hx] }
+def stabilizer (α) [group α] [mul_action α β] (b : β) : subgroup α :=
+{ inv_mem' := λ x (hx : x • b = b), show x⁻¹ • b = b,
+    by rw [← hx, ← mul_action.mul_smul, inv_mul_self, mul_action.one_smul, hx],
+  ..monoid_stabilizer _ _ }
 
 @[simp] lemma mem_orbit_smul (g : α) (a : β) : a ∈ orbit α (g • a) :=
 ⟨g⁻¹, by simp⟩
@@ -246,25 +242,25 @@ rfl
 
 end
 
-open quotient_group mul_action is_subgroup
+open quotient_group mul_action
 
 /-- Action on left cosets. -/
-def mul_left_cosets (H : set α) [is_subgroup H]
+def mul_left_cosets (H : subgroup α)
   (x : α) (y : quotient H) : quotient H :=
 quotient.lift_on' y (λ y, quotient_group.mk ((x : α) * y))
   (λ a b (hab : _ ∈ H), quotient_group.eq.2
     (by rwa [mul_inv_rev, ← mul_assoc, mul_assoc (a⁻¹), inv_mul_self, mul_one]))
 
-instance (H : set α) [is_subgroup H] : mul_action α (quotient H) :=
+instance (H : subgroup α) : mul_action α (quotient H) :=
 { smul := mul_left_cosets H,
   one_smul := λ a, quotient.induction_on' a (λ a, quotient_group.eq.2
-    (by simp [is_submonoid.one_mem])),
+    (by simp [H.one_mem])),
   mul_smul := λ x y a, quotient.induction_on' a (λ a, quotient_group.eq.2
-    (by simp [mul_inv_rev, is_submonoid.one_mem, mul_assoc])) }
+    (by simp [mul_inv_rev, H.one_mem, mul_assoc])) }
 
-instance mul_left_cosets_comp_subtype_val (H I : set α) [is_subgroup H] [is_subgroup I] :
+instance mul_left_cosets_comp_subtype_val (H I : subgroup α) :
   mul_action I (quotient H) :=
-mul_action.comp_hom (quotient H) (subtype.val : I → α)
+mul_action.comp_hom (quotient H) I.subtype
 
 end mul_action
 

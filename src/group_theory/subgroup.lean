@@ -301,6 +301,9 @@ coe_subtype H ▸ monoid_hom.map_pow _ _ _
 @[simp, norm_cast] lemma coe_gpow (x : H) (n : ℤ) : ((x ^ n : H) : G) = x ^ n :=
 coe_subtype H ▸ monoid_hom.map_gpow _ _ _
 
+lemma subtype.injective : function.injective H.subtype :=
+subtype.val_injective
+
 @[to_additive]
 instance : has_le (subgroup G) := ⟨λ H K, ∀ ⦃x⦄, x ∈ H → x ∈ K⟩
 
@@ -448,6 +451,11 @@ lemma closure_eq : closure (K : set G) = K := (subgroup.gi G).l_u_eq K
 @[to_additive]
 lemma closure_union (s t : set G) : closure (s ∪ t) = closure s ⊔ closure t :=
 (subgroup.gi G).gc.l_sup
+
+@[to_additive]
+lemma union_subset_sup (H' : subgroup G) : (H ∪ H' : set G) ⊆ ↑(H ⊔ H') :=
+calc (H ∪ H' : set G) ⊆ closure (H ∪ H' : set G) : subset_closure
+                   ... = ↑(H ⊔ H') : by rw [closure_union, closure_eq, closure_eq]
 
 @[to_additive]
 lemma closure_Union {ι} (s : ι → set G) : closure (⋃ i, s i) = ⨆ i, closure (s i) :=
@@ -637,6 +645,9 @@ structure normal (H : add_subgroup A) : Prop :=
 
 attribute [to_additive add_subgroup.normal] subgroup.normal
 attribute [class] normal
+
+def normal.to_subgroup {N : add_subgroup A} (hN : normal N) : N.to_subgroup.normal :=
+⟨ hN.1 ⟩
 
 end add_subgroup
 
@@ -964,6 +975,9 @@ subgroup.copy (gpowers_hom G g).range (set.range ((^) g : ℤ → G)) rfl
 lemma gpowers_eq_closure (g : G) : gpowers g = closure {g} :=
 by { ext, exact mem_closure_singleton.symm }
 
+lemma gpowers_le {a : G} {s : subgroup G} (h : a ∈ s) : gpowers a ≤ s :=
+λ x hx, match x, hx with _, ⟨i, rfl⟩ := s.gpow_mem h _ end
+
 end subgroup
 
 namespace add_subgroup
@@ -976,6 +990,9 @@ add_subgroup.copy (gmultiples_hom A a).range (set.range ((•ℤ a) : ℤ → A)
 
 lemma gmultiples_eq_closure (a : A) : gmultiples a = closure {a} :=
 by { ext, exact mem_closure_singleton.symm }
+
+lemma gmultiples_le {a : A} {s : add_subgroup A} (h : a ∈ s) : gmultiples a ≤ s :=
+@subgroup.gpowers_le (multiplicative A) _ _ s.to_subgroup h
 
 attribute [to_additive add_subgroup.gmultiples] subgroup.gpowers
 attribute [to_additive add_subgroup.mem_gmultiples] subgroup.mem_gpowers

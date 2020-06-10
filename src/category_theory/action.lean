@@ -69,19 +69,19 @@ lemma hom_as_subtype (p q : action_category M X) :
 instance [inhabited X] : inhabited (action_category M X) :=
 { default := obj_equiv M X (default X) }
 
-variables {X} (x : X)
+variables {G : Type*} [group G] {X} (x : X) [mul_action G X]
 /-- The stabilizer of a point is isomorphic to the endomorphism monoid at the
   corresponding point. In fact they are definitionally equivalent. -/
-def stabilizer_iso_End : stabilizer M x ≃* End (obj_equiv M X x) :=
+def stabilizer_iso_End : stabilizer G x ≃* End (obj_equiv G X x) :=
 mul_equiv.refl _
 
 @[simp]
-lemma stabilizer_iso_End_apply (f : stabilizer M x) :
-  (stabilizer_iso_End M x).to_fun f = f := rfl
+lemma stabilizer_iso_End_apply (f : stabilizer G x) :
+  (stabilizer_iso_End x) f = f := rfl
 
 @[simp]
-lemma stabilizer_iso_End_symm_apply (f : End _) :
-  (stabilizer_iso_End M x).inv_fun f = f := rfl
+lemma stabilizer_iso_End_symm_apply (f : End (obj_equiv G X x)) :
+  @mul_equiv.inv_fun (stabilizer G x) _ _ _ (stabilizer_iso_End x) f = f := rfl
 
 end action_category
 end category_theory

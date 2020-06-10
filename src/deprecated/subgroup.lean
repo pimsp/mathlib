@@ -555,10 +555,10 @@ begin
 end
 
 @[to_additive gmultiples_eq_closure]
-theorem gpowers_eq_closure {a : G} : gpowers a = closure {a} :=
+theorem gpowers_eq_closure {a : G} : _root_.gpowers a = closure {a} :=
 subset.antisymm
   (gpowers_subset $ mem_closure $ by simp)
-  (closure_subset $ by simp [mem_gpowers])
+  (closure_subset $ by simp [_root_.mem_gpowers])
 
 end group
 
