@@ -14,16 +14,71 @@ noncomputable theory
 
 open topological_space set measurable_space has_inv
 
-namespace function
+namespace nat
 
-@[simp] lemma nat.find_pos {p : ℕ → Prop} [decidable_pred p] (h : ∃ (n : ℕ), p n) :
-  0 < nat.find h ↔ ¬ p 0 :=
+@[simp] lemma find_eq_zero {p : ℕ → Prop} [decidable_pred p] (h : ∃ (n : ℕ), p n) :
+  nat.find h = 0 ↔ p 0 :=
 begin
-  rw [nat.pos_iff_ne_zero, not_iff_not],
   split,
   { intro h0, rw [← h0], apply nat.find_spec },
   { intro hp, apply nat.eq_zero_of_le_zero, exact nat.find_min' _ hp }
 end
+
+@[simp] lemma find_pos {p : ℕ → Prop} [decidable_pred p] (h : ∃ (n : ℕ), p n) :
+  0 < nat.find h ↔ ¬ p 0 :=
+by rw [nat.pos_iff_ne_zero, not_iff_not, nat.find_eq_zero]
+
+open_locale classical
+
+/- redefine `Inf_nat_def` -/
+protected lemma Inf_def {s : set ℕ} (h : s.nonempty) : Inf s = nat.find h :=
+Inf_nat_def _
+
+@[simp] lemma Inf_eq_zero {s : set ℕ} : Inf s = 0 ↔ 0 ∈ s ∨ s = ∅ :=
+begin
+  cases eq_empty_or_nonempty s,
+  { subst h, simp only [or_true, eq_self_iff_true, iff_true, Inf, has_Inf.Inf,
+      mem_empty_eq, exists_false, dif_neg, not_false_iff] },
+  { have := ne_empty_iff_nonempty.mpr h,
+    simp only [this, or_false, nat.Inf_def, h, nat.find_eq_zero] }
+end
+
+lemma Inf_spec {s : set ℕ} (h : s.nonempty) : Inf s ∈ s :=
+by { rw [nat.Inf_def h], exact nat.find_spec h }
+
+lemma not_mem_of_lt_Inf {s : set ℕ} {m : ℕ} (hm : m < Inf s) : m ∉ s :=
+begin
+  cases eq_empty_or_nonempty s,
+  { subst h, apply not_mem_empty },
+  { rw [nat.Inf_def h] at hm, exact nat.find_min h hm }
+end
+
+protected lemma Inf_le {s : set ℕ} {m : ℕ} (hm : m ∈ s) : Inf s ≤ m :=
+by { rw [nat.Inf_def ⟨m, hm⟩], exact nat.find_min' ⟨m, hm⟩ hm }
+
+end nat
+
+@[simp] lemma bUnion_finset_image {α β γ} [decidable_eq α] {s : finset γ} {f : γ → α}
+  {g : α → set β} : (⋃x ∈ s.image f, g x) = (⋃y ∈ s, g (f y)) :=
+begin
+  convert @bUnion_image _ _ _ (↑s) _ _, ext x y,
+  simp only [mem_Union, exists_prop, ← finset.mem_coe, finset.coe_image]
+end
+
+@[simp] lemma bInter_finset_image {α β γ} [decidable_eq α] {s : finset γ} {f : γ → α}
+  {g : α → set β} : (⋂ x ∈ s.image f, g x) = (⋂ y ∈ s, g (f y)) :=
+begin
+  convert @bInter_image _ _ _ (↑s) _ _, ext x y,
+  simp only [mem_Inter, exists_prop, ← finset.mem_coe, finset.coe_image]
+end
+
+lemma mem_prop {α} {p : α → Prop} {x : α} : @has_mem.mem α (set α) _ x p ↔ p x := iff.rfl
+
+lemma disjoint.preimage {α β} (f : α → β) {s t : set β} (h : disjoint s t) :
+  disjoint (f ⁻¹' s) (f ⁻¹' t) :=
+λ x hx, h hx
+
+namespace function
 
 lemma injective.surjective_preimage {α β : Type*} {f : α → β} (hf : injective f) :
   surjective (preimage f) :=
@@ -101,12 +156,16 @@ end
 
 end homeomorph
 
+section
+variables {α : Type*} {β : Type*} [topological_space α] [topological_space β]
+
+def compacts (α : Type*) [topological_space α] : set (set α) := { s : set α | compact s }
+
+end
+
 variables {α : Type u} [measurable_space α]
           {β : Type v} [measurable_space β]
 
-lemma disjoint.preimage {α β} (f : α → β) {s t : set β} (h : disjoint s t) :
-  disjoint (f ⁻¹' s) (f ⁻¹' t) :=
-λ x hx, h hx
 
 section
 variables [topological_space α]  [borel_space α]
@@ -243,21 +302,17 @@ by { refine ⟨λ h, _, is_left_haar_measure_conj'⟩, rw ←μ.conj_conj,
      exact is_right_haar_measure_conj' h }
 
 /-- (K : V) -/
-def rank (K V : set G) : ℕ :=
-Inf {n | ∃ (t : finset G), finset.card t = n ∧ K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V }
+def index (K V : set G) : ℕ :=
+Inf $ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V }
 
-lemma rank_empty {V : set G} : rank ∅ V = 0 :=
-sorry
-
-lemma le_rank_mul {K₀ K U : set G} : rank K U ≤ rank K K₀ * rank K₀ U :=
-sorry
-
-lemma rank_defined {K V : set G} (hK : compact K) (hV : (interior V).nonempty) :
-  ∃ n : ℕ, ∃ (t : finset G), finset.card t = n ∧ K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V :=
+/-- If `K` is compact and `V` has nonempty interior, then the index `(K : V)` is well-defined,
+  there is a finite set `t` satisfying the desired properties. -/
+lemma index_defined {K V : set G} (hK : compact K) (hV : (interior V).nonempty) :
+  ∃ n : ℕ, n ∈ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V } :=
 begin
   cases hV with g₀ hg₀,
   rcases compact.elim_finite_subcover hK (λ g : G, interior $ (λ h, g * h) ⁻¹' V) _ _ with ⟨t, ht⟩,
-  { refine ⟨t.card, t, rfl, subset.trans ht _⟩,
+  { refine ⟨t.card, t, subset.trans ht _, rfl⟩,
     apply Union_subset_Union, intro g, apply Union_subset_Union, intro hg, apply interior_subset },
   { intro g, apply is_open_interior },
   { intros g hg, rw [mem_Union], use g₀ * g⁻¹,
@@ -265,35 +320,95 @@ begin
     rwa [mem_preimage, inv_mul_cancel_right] }
 end
 
-lemma rank_pos {K V : set G} (hK : compact K) (hV : (interior V).nonempty)
-  (h2K : (interior K).nonempty) : 0 < rank K V :=
+lemma index_elim {K V : set G} (hK : compact K) (hV : (interior V).nonempty) :
+  ∃ (t : finset G), K ⊆ (⋃ g ∈ t, (λ h, g * h) ⁻¹' V) ∧ finset.card t = index K V :=
+by { have := nat.Inf_spec (index_defined hK hV), rwa [mem_image] at this }
+
+
+lemma index_empty {V : set G} : index ∅ V = 0 :=
 begin
-  unfold rank, rw [Inf_nat_def, nat.find_pos, mem_set_of_eq],
-  { rintro ⟨t, h1t, h2t⟩, rw [finset.card_eq_zero] at h1t, subst h1t,
-    cases h2K with g hg,
-    show g ∈ (∅ : set G), convert h2t (interior_subset hg), symmetry, apply bUnion_empty },
-  { exact rank_defined hK hV }
+  simp only [index, nat.Inf_eq_zero], left, use ∅,
+  simp only [finset.card_empty, empty_subset, mem_set_of_eq, eq_self_iff_true, and_self],
 end
 
-/-- mu -/
-def mu (K₀ U K : set G) : ℝ := (rank K U : ℝ) / rank K₀ U
+lemma le_index_mul {K₀ K V : set G}
+  (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
+  (hK : compact K) (hV : (interior V).nonempty) : index K V ≤ index K K₀ * index K₀ V :=
+begin
+  classical,
+  rcases index_elim hK h2K₀ with ⟨s, h1s, h2s⟩,
+  rcases index_elim h1K₀ hV with ⟨t, h1t, h2t⟩,
+  rw [← h2s, ← h2t],
+  refine le_trans (nat.Inf_le _) _,
+  exact ((t.product s).image (λ p : G × G, p.1 * p.2)).card,
+  { refine ⟨_, _, rfl⟩, rw [mem_set_of_eq], refine subset.trans h1s _,
+    apply bUnion_subset, intros g₁ hg₁, rw preimage_subset_iff, intros g₂ hg₂,
+    have := h1t hg₂,
+    rcases this with ⟨_, ⟨g₃, rfl⟩, A, ⟨hg₃, rfl⟩, hV⟩, rw [mem_preimage] at hV,
+    fapply mem_bUnion, exact g₃ * g₁,
+    simp only [multiset.mem_erase_dup, finset.product_val, multiset.mem_product, multiset.mem_map,
+      finset.image_val, prod.exists, mem_def],
+    refine ⟨g₃, g₁, ⟨hg₃, hg₁⟩, rfl⟩, rw [mem_preimage], convert hV using 1, rw [mul_assoc] },
+  { convert finset.card_image_le, rw [finset.card_product, mul_comm] },
+end
 
-lemma mu_nonneg {K₀ U K : set G} : 0 ≤ mu K₀ U K :=
-sorry
+lemma index_pos {K V : set G} (h1K : compact K) (h2K : (interior K).nonempty)
+  (hV : (interior V).nonempty) : 0 < index K V :=
+begin
+  unfold index, rw [Inf_nat_def, nat.find_pos, mem_image],
+  { rintro ⟨t, h1t, h2t⟩, rw [finset.card_eq_zero] at h2t, subst h2t,
+    cases h2K with g hg,
+    show g ∈ (∅ : set G), convert h1t (interior_subset hg), symmetry, apply bUnion_empty },
+  { exact index_defined h1K hV }
+end
 
-lemma mu_le_rank {K₀ U K : set G} : mu K₀ U K ≤ rank K K₀ :=
-sorry
+lemma index_mono {K K' V : set G} (hK' : compact K') (h : K ⊆ K')
+  (hV : (interior V).nonempty) : index K V ≤ index K' V :=
+begin
+  rcases index_elim hK' hV with ⟨s, h1s, h2s⟩,
+  apply nat.Inf_le, rw [mem_image], refine ⟨s, subset.trans h h1s, h2s⟩
+end
 
-/-- XX -/
-def XX (K₀ : set G) : set (set G → ℝ) :=
-set.pi set.univ /- or compacts -/ (λ K, Icc 0 $ rank K K₀)
+/-- prehaar -/
+-- in notes: K₀ compact with non-empty interior, U open containing 1, K compact
+def prehaar (K₀ U K : set G) : ℝ := (index K U : ℝ) / index K₀ U
 
-def mu_mem_XX {K₀ U : set G}: mu K₀ U ∈ XX K₀ :=
-by { intros K hK, rw [mem_Icc], exact ⟨mu_nonneg, mu_le_rank⟩ }
+lemma prehaar_nonneg {K₀ U K : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
+  (hU : (interior U).nonempty) : 0 ≤ prehaar K₀ U K :=
+by { apply div_nonneg; norm_cast, apply zero_le, exact index_pos h1K₀ h2K₀ hU }
+
+lemma prehaar_le_index {K₀ U K : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
+   (hK : compact K) (hU : (interior U).nonempty) : prehaar K₀ U K ≤ index K K₀ :=
+begin
+  unfold prehaar, rw [div_le_iff]; norm_cast,
+  { apply le_index_mul h1K₀ h2K₀ hK hU },
+  { exact index_pos h1K₀ h2K₀ hU }
+end
+
+/-- haar_product -/
+def haar_product (K₀ : set G) : set (set G → ℝ) := -- maybe compacts
+set.pi { K | compact K } (λ K, Icc 0 $ index K K₀)
+
+lemma prehaar_mem_haar_product {K₀ U : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
+  (hU : (interior U).nonempty) : prehaar K₀ U ∈ haar_product K₀ :=
+by { intros K hK, rw [mem_Icc],
+     exact ⟨prehaar_nonneg h1K₀ h2K₀ hU, prehaar_le_index h1K₀ h2K₀ hK hU⟩ }
+
+/-- C -/
+def CC (K₀ V : set G) : set (set G → ℝ) :=
+closure $ prehaar K₀ '' { U : set G | U ⊆ V } -- maybe opens
 
 
+lemma nonempty_Inter_CC {K₀ : set G} :
+  (⋂ (V : set G) (hV : is_open V), CC K₀ V).nonempty :=
+begin
+  sorry
+end
 
+#check @compact.elim_finite_subfamily_closed
+#check @compact_pi_infinite
 
+/-- the Haar measure -/
 def haar_measure' (K₀ V : set G) : ℝ := sorry
 
 theorem exists_left_haar_measure [locally_compact_space G] :
@@ -303,3 +418,4 @@ begin
 end
 
 end measure_theory
+-- #lint
