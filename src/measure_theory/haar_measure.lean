@@ -161,6 +161,12 @@ variables {α : Type*} {β : Type*} [topological_space α] [topological_space β
 
 /-- The compact sets of a topological space. See also `nonempty_compacts`. -/
 def compacts (α : Type*) [topological_space α] : set (set α) := { s : set α | compact s }
+
+/-- The compact sets with nonempty interior of a topological space. See also `compacts` and
+  `nonempty_compacts`. -/
+def nontrivial_compacts (α : Type*) [topological_space α] : set (set α) :=
+{ s : set α | compact s ∧ (interior s).nonempty  }
+
 /-- The open neighborhoods of a point. See also `opens`. -/
 def open_nhds_of {α : Type*} [topological_space α] (x : α) : set (set α) :=
 { s : set α | is_open s ∧ x ∈ s }
@@ -213,19 +219,23 @@ continuous.measurable $ continuous_const.mul continuous_id
 lemma measurable_mul_right (g : G) : measurable (λ h : G, h * g) :=
 continuous.measurable $ continuous_id.mul continuous_const
 
-/-- A left Haar measure. -/
-structure is_left_haar_measure (μ : measure G) : Prop :=
-  (measure_univ_pos : μ.nonzero)
-  (is_regular : μ.regular)
-  (left_invariant : ∀ (g : G) {A : set G} (h : is_measurable A),
-    μ ((λ h, g * h) ⁻¹' A) = μ A)
+def is_left_invariant (μ : measure G) : Prop :=
+∀ (g : G) {A : set G} (h : is_measurable A), μ ((λ h, g * h) ⁻¹' A) = μ A
 
-/-- A right Haar measure. -/
-structure is_right_haar_measure (μ : measure G) : Prop :=
-  (measure_univ_pos : μ.nonzero)
-  (is_regular : μ.regular)
-  (right_invariant : ∀ (g : G) {A : set G} (h : is_measurable A),
-    μ ((λ h, h * g) ⁻¹' A) = μ A)
+def is_right_invariant (μ : measure G) : Prop :=
+∀ (g : G) {A : set G} (h : is_measurable A), μ ((λ h, h * g) ⁻¹' A) = μ A
+
+-- /-- A left Haar measure. -/
+-- structure is_left_haar_measure (μ : measure G) : Prop :=
+--   (measure_univ_pos : μ.nonzero)
+--   (is_regular : μ.regular)
+--   (left_invariant : is_left_invariant μ)
+
+-- /-- A right Haar measure. -/
+-- structure is_right_haar_measure (μ : measure G) : Prop :=
+--   (measure_univ_pos : μ.nonzero)
+--   (is_regular : μ.regular)
+--   (right_invariant : is_right_invariant μ)
 
 namespace measure
 
@@ -279,36 +289,29 @@ variables [t2_space G] {μ : measure G}
 @[simp] lemma regular_conj_iff : μ.conj.regular ↔ μ.regular :=
 by { refine ⟨λ h, _, measure.regular.conj⟩, rw ←μ.conj_conj, exact measure.regular.conj h }
 
-lemma is_right_haar_measure_conj' (h : is_left_haar_measure μ) :
-  is_right_haar_measure μ.conj :=
+lemma is_right_invariant_conj' (h : is_left_invariant μ) :
+  is_right_invariant μ.conj :=
 begin
-  split,
-  { exact h.1.conj },
-  { exact h.2.conj },
-  { intros g A hA, rw [μ.conj_apply (measurable_mul_right g A hA), μ.conj_apply hA],
-    convert h.3 g⁻¹ (measurable_inv A hA) using 2,
-    simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv] },
+  intros g A hA, rw [μ.conj_apply (measurable_mul_right g A hA), μ.conj_apply hA],
+  convert h g⁻¹ (measurable_inv A hA) using 2,
+  simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
 end
 
-lemma is_left_haar_measure_conj' (h : is_right_haar_measure μ) :
-  is_left_haar_measure μ.conj :=
+lemma is_left_invariant_conj' (h : is_right_invariant μ) : is_left_invariant μ.conj :=
 begin
-  split,
-  { exact h.1.conj },
-  { exact h.2.conj },
-  { intros g A hA, rw [μ.conj_apply (measurable_mul_left g A hA), μ.conj_apply hA],
-    convert h.3 g⁻¹ (measurable_inv A hA) using 2,
-    simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv] },
+  intros g A hA, rw [μ.conj_apply (measurable_mul_left g A hA), μ.conj_apply hA],
+  convert h g⁻¹ (measurable_inv A hA) using 2,
+  simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
 end
 
-@[simp] lemma is_right_haar_measure_conj : is_right_haar_measure μ.conj ↔ is_left_haar_measure μ :=
-by { refine ⟨λ h, _, is_right_haar_measure_conj'⟩, rw ←μ.conj_conj,
-     exact is_left_haar_measure_conj' h }
+@[simp] lemma is_right_invariant_conj : is_right_invariant μ.conj ↔ is_left_invariant μ :=
+by { refine ⟨λ h, _, is_right_invariant_conj'⟩, rw ←μ.conj_conj, exact is_left_invariant_conj' h }
 
-@[simp] lemma is_left_haar_measure_conj : is_left_haar_measure μ.conj ↔ is_right_haar_measure μ :=
-by { refine ⟨λ h, _, is_left_haar_measure_conj'⟩, rw ←μ.conj_conj,
-     exact is_right_haar_measure_conj' h }
+@[simp] lemma is_left_invariant_conj : is_left_invariant μ.conj ↔ is_right_invariant μ :=
+by { refine ⟨λ h, _, is_left_invariant_conj'⟩, rw ←μ.conj_conj, exact is_right_invariant_conj' h }
 
+/- we put the construction of the Haar measure in a namespace to partially hide it -/
+namespace haar
 /-- (K : V) -/
 def index (K V : set G) : ℕ :=
 Inf $ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V }
@@ -339,13 +342,12 @@ begin
   simp only [finset.card_empty, empty_subset, mem_set_of_eq, eq_self_iff_true, and_self],
 end
 
-lemma le_index_mul {K₀ K V : set G}
-  (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
-  (hK : compact K) (hV : (interior V).nonempty) : index K V ≤ index K K₀ * index K₀ V :=
+lemma le_index_mul (K₀ : nontrivial_compacts G) {K V : set G}
+  (hK : compact K) (hV : (interior V).nonempty) : index K V ≤ index K K₀.1 * index K₀.1 V :=
 begin
   classical,
-  rcases index_elim hK h2K₀ with ⟨s, h1s, h2s⟩,
-  rcases index_elim h1K₀ hV with ⟨t, h1t, h2t⟩,
+  rcases index_elim hK K₀.2.2 with ⟨s, h1s, h2s⟩,
+  rcases index_elim K₀.2.1 hV with ⟨t, h1t, h2t⟩,
   rw [← h2s, ← h2t],
   refine le_trans (nat.Inf_le _) _,
   exact ((t.product s).image (λ p : G × G, p.1 * p.2)).card,
@@ -360,14 +362,13 @@ begin
   { convert finset.card_image_le, rw [finset.card_product, mul_comm] },
 end
 
-lemma index_pos {K V : set G} (h1K : compact K) (h2K : (interior K).nonempty)
-  (hV : (interior V).nonempty) : 0 < index K V :=
+lemma index_pos (K : nontrivial_compacts G) {V : set G} (hV : (interior V).nonempty) : 0 < index K.1 V :=
 begin
   unfold index, rw [Inf_nat_def, nat.find_pos, mem_image],
   { rintro ⟨t, h1t, h2t⟩, rw [finset.card_eq_zero] at h2t, subst h2t,
-    cases h2K with g hg,
+    cases K.2.2 with g hg,
     show g ∈ (∅ : set G), convert h1t (interior_subset hg), symmetry, apply bUnion_empty },
-  { exact index_defined h1K hV }
+  { exact index_defined K.2.1 hV }
 end
 
 lemma index_mono {K K' V : set G} (hK' : compact K') (h : K ⊆ K')
@@ -381,35 +382,35 @@ end
 -- in notes: K₀ compact with non-empty interior, U open containing 1, K compact
 def prehaar (K₀ U : set G) (K : compacts G) : ℝ := (index K.1 U : ℝ) / index K₀ U
 
-lemma prehaar_nonneg {K₀ U : set G} {K : compacts G} (h1K₀ : compact K₀)
-  (h2K₀ : (interior K₀).nonempty) (hU : (interior U).nonempty) : 0 ≤ prehaar K₀ U K :=
-by { apply div_nonneg; norm_cast, apply zero_le, exact index_pos h1K₀ h2K₀ hU }
+lemma prehaar_nonneg (K₀ : nontrivial_compacts G) {U : set G} (K : compacts G)
+  (hU : (interior U).nonempty) : 0 ≤ prehaar K₀.1 U K :=
+by { apply div_nonneg; norm_cast, apply zero_le, exact index_pos K₀ hU }
 
-lemma prehaar_le_index {K₀ U : set G} {K : compacts G} (h1K₀ : compact K₀)
-  (h2K₀ : (interior K₀).nonempty) (hU : (interior U).nonempty) : prehaar K₀ U K ≤ index K.1 K₀ :=
+lemma prehaar_le_index (K₀ : nontrivial_compacts G) {U : set G} (K : compacts G)
+  (hU : (interior U).nonempty) : prehaar K₀.1 U K ≤ index K.1 K₀.1 :=
 begin
   unfold prehaar, rw [div_le_iff]; norm_cast,
-  { apply le_index_mul h1K₀ h2K₀ K.2 hU },
-  { exact index_pos h1K₀ h2K₀ hU }
+  { apply le_index_mul K₀ K.2 hU },
+  { exact index_pos K₀ hU }
 end
 
-/-- haar_product -/
+/-- haar_product X -/
 def haar_product (K₀ : set G) : set (compacts G → ℝ) :=
 set.pi set.univ (λ K, Icc 0 $ index K.1 K₀)
 
-lemma prehaar_mem_haar_product {K₀ U : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
-  (hU : (interior U).nonempty) : prehaar K₀ U ∈ haar_product K₀ :=
+lemma prehaar_mem_haar_product (K₀ : nontrivial_compacts G) {U : set G}
+  (hU : (interior U).nonempty) : prehaar K₀.1 U ∈ haar_product K₀.1 :=
 by { rintro ⟨K, hK⟩ h2K, rw [mem_Icc],
-     exact ⟨prehaar_nonneg h1K₀ h2K₀ hU, prehaar_le_index h1K₀ h2K₀ hU⟩ }
+     exact ⟨prehaar_nonneg K₀ _ hU, prehaar_le_index K₀ _ hU⟩ }
 
 /-- C -/
 def CC (K₀ : set G) (V : open_nhds_of (1 : G)) : set (compacts G → ℝ) :=
 closure $ prehaar K₀ '' { U : set G | U ⊆ V ∧ is_open U ∧ (1 : G) ∈ U }
 
-lemma nonempty_Inter_CC {K₀ : set G}  (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty) :
-  (haar_product K₀ ∩ ⋂ (V : open_nhds_of (1 : G)), CC K₀ V).nonempty :=
+lemma nonempty_Inter_CC (K₀ : nontrivial_compacts G) :
+  (haar_product K₀.1 ∩ ⋂ (V : open_nhds_of (1 : G)), CC K₀.1 V).nonempty :=
 begin
-  have : compact (haar_product K₀), { apply compact_univ_pi, intro K, apply compact_Icc },
+  have : compact (haar_product K₀.1), { apply compact_univ_pi, intro K, apply compact_Icc },
   rw [← ne_empty_iff_nonempty],
   have := compact.elim_finite_subfamily_closed this (CC K₀) (λ s, is_closed_closure), apply mt this,
   rintro ⟨t, h1t⟩, rw [← not_nonempty_iff_eq_empty] at h1t, apply h1t,
@@ -419,22 +420,41 @@ begin
   have h2V₀ : (1 : G) ∈ V₀, { rw mem_Inter, rintro ⟨V, hV⟩, rw mem_Inter, intro h2V, exact hV.2 },
   refine ⟨prehaar K₀ V₀, _⟩,
   split,
-  { apply prehaar_mem_haar_product h1K₀ h2K₀, use 1, rwa interior_eq_of_open h1V₀ },
+  { apply prehaar_mem_haar_product K₀, use 1, rwa interior_eq_of_open h1V₀ },
   { rw mem_Inter, rintro ⟨V, hV⟩, rw mem_Inter, intro h2V, apply subset_closure,
     apply mem_image_of_mem, rw [mem_set_of_eq],
     exact ⟨subset.trans (Inter_subset _ ⟨V, hV⟩) (Inter_subset _ h2V), h1V₀, h2V₀⟩ },
 end
 
 /-- the Haar measure on compact sets -/
-def haar_measure' {K₀ : set G} (h1K₀ : compact K₀) (h2K₀ : (interior K₀).nonempty)
-  (K : compacts G) : ℝ :=
-classical.some (nonempty_Inter_CC h1K₀ h2K₀) K
+def haar_measure' (K₀ : nontrivial_compacts G) (K : compacts G) : nnreal :=
+⟨classical.some (nonempty_Inter_CC K₀) K, sorry⟩
 
-theorem exists_left_haar_measure [locally_compact_space G] :
-  ∃ (μ : measure G), is_left_haar_measure μ :=
-begin
-  sorry
-end
+
+end haar
+open haar
+
+/-- the Haar measure on `G` -/
+def haar_measure (K₀ : nontrivial_compacts G) : measure G :=
+sorry
+
+lemma haar_measure_eq_haar_measure' (K₀ : nontrivial_compacts G) (K : compacts G) :
+  haar_measure K₀ K = haar_measure' K₀ K :=
+sorry
+
+lemma is_left_invariant_haar_measure (K₀ : nontrivial_compacts G) (K : compacts G) :
+  is_left_invariant (haar_measure K₀) :=
+sorry
+
+lemma nonzero_haar_measure (K₀ : nontrivial_compacts G) (K : compacts G) :
+  (haar_measure K₀).nonzero :=
+sorry
+
+lemma regular_haar_measure (K₀ : nontrivial_compacts G) (K : compacts G) :
+  (haar_measure K₀).regular :=
+sorry
+
+
 
 end measure_theory
 -- #lint
