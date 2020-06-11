@@ -5,6 +5,7 @@ Authors: Kevin Buzzard, Patrick Massot.
 
 This file is to a certain extent based on `quotient_module.lean` by Johannes Hölzl.
 -/
+import algebra.punit_instances
 import group_theory.coset
 
 universes u v
@@ -179,6 +180,16 @@ noncomputable def quotient_ker_equiv_of_surjective (hφ : function.surjective φ
   (quotient (ker φ)) ≃ H :=
 calc (quotient_group.quotient φ.ker) ≃ set.range φ : quotient_ker_equiv_range N _
 ... ≃ H : ⟨λ a, a.1, λ b, ⟨b, hφ b⟩, λ ⟨_, _⟩, rfl, λ _, rfl⟩
+
+omit hN
+
+instance top_normal : subgroup.normal (⊤ : subgroup G) := ⟨by simp⟩
+
+def quotient_top : quotient (⊤ : subgroup G) ≃* unit :=
+{ inv_fun := λ _, 1,
+  left_inv := λ x, induction_on x (λ z, eq_comm.mp ((mk_eq_one_iff _ _).mpr ⟨⟩)),
+  right_inv := λ _, inv_inj.mp rfl,
+  ..(1 : quotient ⊤ →* unit) }
 
 end quotient_group
 
