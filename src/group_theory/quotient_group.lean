@@ -185,7 +185,7 @@ omit hN
 
 instance top_normal : subgroup.normal (⊤ : subgroup G) := ⟨by simp⟩
 
-def quotient_top : quotient (⊤ : subgroup G) ≃* unit :=
+def quotient_top (G) [group G] : quotient (⊤ : subgroup G) ≃* unit :=
 { inv_fun := λ _, 1,
   left_inv := λ x, induction_on x (λ z, eq_comm.mp ((mk_eq_one_iff _ _).mpr ⟨⟩)),
   right_inv := λ _, inv_inj.mp rfl,
