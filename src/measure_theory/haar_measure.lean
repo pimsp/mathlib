@@ -408,72 +408,6 @@ variables {α : Type*} [topological_space α]
 lemma bUnion_finset_empty {α β} {g : α → set β} : (⋃x ∈ (∅ : finset α), g x) = ∅ :=
 by simp
 
--- /-- For every finite open cover `Uᵢ` of a compact set, there exists a compact cover `Kᵢ ⊆ Uᵢ`. -/
--- lemma compact.finite_compact_cover [t2_space α] {s : set α} (hs : compact s)
---   (C : finset (opens α)) (hsC : s ⊆ ⋃ (U ∈ C), (U : opens α).1) :
---   ∃ K : {s // s ∈ C } → compacts α, (∀ U, (K U).1 ⊆ U.1) ∧ s = ⋃ i, (K i).1 :=
--- begin
---   classical, revert s hs hsC,
---   refine finset.induction _ _ C,
---   { intros, refine ⟨λ _, ∅, λ U, empty_subset _, _⟩,
---     simpa only [subset_empty_iff, finset.not_mem_empty, Union_neg, Union_empty, not_false_iff,
---       compacts.empty_val] using hsC },
---   { intros U C hU ih s hs hsC, simp only [finset.bUnion_insert] at hsC,
---     rcases hs.binary_compact_cover U.2 (is_open_bUnion $ λ U (h : U ∈ C), (U : opens α).2) hsC
---       with ⟨K₁, K₂, h1K₁, h1K₂, h2K₁, h2K₂, hK⟩,
---     rcases ih h1K₂ h2K₂ with ⟨K, h1K, h2K⟩,
---     refine ⟨λ x, if h : x.1 ∈ C then K ⟨x, h⟩ else ⟨K₁, h1K₁⟩, _, _⟩,
---     { rintro ⟨V, hV⟩, simp only [subtype.coe_mk], dsimp only,
---       simp only [finset.mem_insert] at hV, rcases hV with rfl|h2V,
---       simpa only [dif_neg hU] using h2K₁, simp only [dif_pos, h2V], apply h1K },
---     { ext x, simp only [mem_Union, subtype.exists, subtype.coe_mk, hK],
---       split,
---       { rintro (hx|hx),
---         exact ⟨U, by simp only [true_or, eq_self_iff_true, finset.mem_insert],
---           by simp only [dif_neg hU, hx]⟩,
---         simp only [h2K, mem_Union, subtype.exists] at hx, rcases hx with ⟨V, h1V, h2V⟩,
---         refine ⟨V, by simp only [h1V, or_true, finset.mem_insert], _⟩,
---         dsimp only, simp only [h1V, dif_pos, h2V] },
---       { rintro ⟨V, h1V, h2V⟩, simp only [finset.mem_insert] at h1V,
---         rcases h1V with rfl|h3V, simp only [dif_neg hU] at h2V, exact or.inl h2V,
---         simp only [dif_pos h3V] at h2V,
---         simp only [h2K, mem_Union, subtype.exists, mem_union_eq], exact or.inr ⟨V, h3V, h2V⟩ }}}
--- end
-
--- /-- For every finite open cover `Uᵢ` of a compact set, there exists a compact cover `Kᵢ ⊆ Uᵢ`. -/
--- lemma compact.finite_compact_cover [t2_space α] {s : set α} (hs : compact s) {ι} (t : finset ι)
---   (U : {x // x ∈ t} → opens α) (hsC : s ⊆ ⋃ (i : {x // x ∈ t}), (U i).1) :
---   ∃ K : {x // x ∈ t} → compacts α, (∀ i, (K i).1 ⊆ (U i).1) ∧ s = ⋃ (i : {x // x ∈ t}), (K i).1 :=
--- begin
---   classical, revert U s hs hsC,
---   refine finset.induction _ _ t,
---   { intros, refine ⟨λ _, ∅, λ U, empty_subset _, _⟩,
---     sorry,
---     -- simpa only [subset_empty_iff, finset.not_mem_empty, Union_neg, Union_empty, not_false_iff,
---     --   compacts.empty_val] using hsC
---       },
---   { intros x t hx ih U s hs hsC, --simp only [mem_insert] at hsC,
---     rcases hs.binary_compact_cover (U ⟨x, _⟩).2 (is_open_Union $ λ i, (U i).2) hsC
---       with ⟨K₁, K₂, h1K₁, h1K₂, h2K₁, h2K₂, hK⟩,
---     rcases ih h1K₂ h2K₂ with ⟨K, h1K, h2K⟩,
---     refine ⟨λ x, if h : x.1 ∈ C then K ⟨x, h⟩ else ⟨K₁, h1K₁⟩, _, _⟩,
---     { rintro ⟨V, hV⟩, simp only [subtype.coe_mk], dsimp only,
---       simp only [finset.mem_insert] at hV, rcases hV with rfl|h2V,
---       simpa only [dif_neg hU] using h2K₁, simp only [dif_pos, h2V], apply h1K },
---     { ext x, simp only [mem_Union, subtype.exists, subtype.coe_mk, hK],
---       split,
---       { rintro (hx|hx),
---         exact ⟨U, by simp only [true_or, eq_self_iff_true, finset.mem_insert],
---           by simp only [dif_neg hU, hx]⟩,
---         simp only [h2K, mem_Union, subtype.exists] at hx, rcases hx with ⟨V, h1V, h2V⟩,
---         refine ⟨V, by simp only [h1V, or_true, finset.mem_insert], _⟩,
---         dsimp only, simp only [h1V, dif_pos, h2V] },
---       { rintro ⟨V, h1V, h2V⟩, simp only [finset.mem_insert] at h1V,
---         rcases h1V with rfl|h3V, simp only [dif_neg hU] at h2V, exact or.inl h2V,
---         simp only [dif_pos h3V] at h2V,
---         simp only [h2K, mem_Union, subtype.exists, mem_union_eq], exact or.inr ⟨V, h3V, h2V⟩ }}}
--- end
-
 /-- For every finite open cover `Uᵢ` of a compact set, there exists a compact cover `Kᵢ ⊆ Uᵢ`. -/
 lemma compact.finite_compact_cover [t2_space α] {s : set α} (hs : compact s) {ι} (t : finset ι)
   (U : ι → opens α) (hsC : s ⊆ ⋃ i ∈ t, (U i).1) :
@@ -516,7 +450,7 @@ section
 variables {α : Type u} [measurable_space α]
           {β : Type v} [measurable_space β]
 
-variables [topological_space α]  [borel_space α]
+variables [topological_space α] [borel_space α]
 lemma compact.is_measurable [t2_space α] {s : set α} (h : compact s) : is_measurable s :=
 (closed_of_compact _ h).is_measurable
 end
@@ -1085,10 +1019,12 @@ measure.extend_from_compacts
   (λ K₁ K₂, by { norm_cast, simp only [←nnreal.coe_le_coe, nnreal.coe_add, subtype.coe_mk,
     chaar_sup_le] })
 
--- variables [measurable_space G]
--- /-- the Haar measure on `G` -/
--- def haar_measure (K₀ : positive_compacts G) : measure G :=
--- sorry
+variables [measurable_space G] [borel_space G]
+/-- the Haar measure on `G` -/
+def haar_measure (K₀ : positive_compacts G) : measure G :=
+{ m_Union := sorry,
+  trimmed := sorry,
+  ..haar_outer_measure K₀ }
 
 -- lemma is_left_invariant_haar_measure (K₀ : positive_compacts G) :
 --   is_left_invariant (haar_measure K₀) :=
@@ -1105,3 +1041,5 @@ measure.extend_from_compacts
 
 
 end measure_theory
+
+-- #lint
