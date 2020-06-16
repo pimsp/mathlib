@@ -190,9 +190,8 @@ supr_emptyset
 end set
 open set
 
-
 namespace finset
-variables {α : Type*}
+variables {α : Type*} {β : Type*} {γ : Type*}
 
 
 
@@ -233,8 +232,39 @@ begin
   exact card_le_of_subset (filter_subset _)
 end
 
+lemma comp_sup_eq_sup_comp' [semilattice_sup_bot α] [semilattice_sup_bot γ] {s : finset β}
+  {f : β → α} (g : α → γ) (g_sup : ∀ x y, g (x ⊔ y) = g x ⊔ g y) (bot : g ⊥ = ⊥) :
+  g (s.sup f) = s.sup (g ∘ f) :=
+by letI := classical.dec_eq β; from
+finset.induction_on s (by simp [bot]) (by simp [g_sup] {contextual := tt})
+
 end finset
 
+
+section
+variables {α : Type*} {β : Type*}
+def subtype.semilattice_sup_bot [semilattice_sup_bot α] {P : α → Prop}
+  (Pbot : P ⊥) (Psup : ∀{{x y}}, P x → P y → P (x ⊔ y)) : semilattice_sup_bot {x : α // P x} :=
+{ bot := ⟨⊥, Pbot⟩,
+  le := λ x y, x ≤ y,
+  lt := λ x y, x < y,
+  le_refl := λ x, le_refl _,
+  le_trans := λ x y z, le_trans,
+  lt_iff_le_not_le := λ x y, lt_iff_le_not_le,
+  le_antisymm := λ x y h₁ h₂, subtype.eq $ le_antisymm h₁ h₂,
+  bot_le := λ x, bot_le,
+  sup := λ x y, ⟨x ⊔ y, Psup x.2 y.2⟩,
+  le_sup_left := λ x y, @le_sup_left _ _ (x : α) y,
+  le_sup_right := λ x y, @le_sup_right _ _ (x : α) y,
+  sup_le := λ x y z h1 h2, @sup_le α _ _ _ _ h1 h2 }
+
+lemma subtype.sup_val [semilattice_sup_bot α] {P : α → Prop}
+  {Pbot : P ⊥} {Psup : ∀{{x y}}, P x → P y → P (x ⊔ y)}
+  (t : finset β) (f : β → {x : α // P x}) :
+  (@finset.sup _ _ (subtype.semilattice_sup_bot Pbot Psup) t f).1 = t.sup (λ x, (f x).1) :=
+by { classical, rw [finset.comp_sup_eq_sup_comp' subtype.val]; intros; refl }
+
+end
 
 lemma infi_congr {α β γ : Type*} {f : α → γ} {g : β → γ} [complete_lattice γ] (h : α → β)
   (h1 : function.surjective h) (h2 : ∀ x, g (h x) = f x) : (⨅ x, f x) = ⨅ y, g y  :=
@@ -298,33 +328,30 @@ lemma is_closed_preimage {f : α → β} (hf : continuous f) {s : set β} (h : i
 by exact continuous_iff_is_closed.mp hf s h
 
 /-- The compact sets of a topological space. See also `nonempty_compacts`. -/
-def compacts (α : Type*) [topological_space α] : set (set α) := { s : set α | compact s }
+def compacts (α : Type*) [topological_space α] : Type* := { s : set α // compact s }
 
-instance compacts.has_sup : has_sup (compacts α) :=
-⟨λ K₁ K₂, ⟨K₁.1 ∪ K₂.1, K₁.2.union K₂.2⟩⟩
+instance : semilattice_sup_bot (compacts α) :=
+subtype.semilattice_sup_bot compact_empty (λ K₁ K₂, compact.union)
 
-instance compacts.has_emptc : has_emptyc (compacts α) :=
-⟨⟨∅, compact_empty⟩⟩
-
-@[simp] lemma compacts.empty_val : (∅ : compacts α).1 = ∅ := rfl
+@[simp] lemma compacts.bot_val : (⊥ : compacts α).1 = ∅ := rfl
 
 @[simp] lemma compacts.sup_val {K₁ K₂ : compacts α} : (K₁ ⊔ K₂).1 = K₁.1 ∪ K₂.1 := rfl
 
 @[ext] lemma compacts.ext {K₁ K₂ : compacts α} (h : K₁.1 = K₂.1) : K₁ = K₂ :=
 subtype.eq h
 
-/-- The union `⋃ i ∈ t, C i` as a compact set. -/
-def compacts.bUnion {ι} (t : finset ι) (C : ι → compacts α) : compacts α :=
-⟨ ⋃ i ∈ t, (C i).1, (finite_mem_finset t).compact_bUnion (λ i hi, (C i).2)⟩
+@[simp] lemma compacts.finset_sup_val {β} {K : β → compacts α} {s : finset β} :
+  (s.sup K).1 = s.sup (λ x, (K x).1) :=
+subtype.sup_val _ _
 
 /-- The compact sets with nonempty interior of a topological space. See also `compacts` and
   `nonempty_compacts`. -/
-def positive_compacts (α : Type*) [topological_space α] : set (set α) :=
-{ s : set α | compact s ∧ (interior s).nonempty  }
+def positive_compacts (α : Type*) [topological_space α] : Type* :=
+{ s : set α // compact s ∧ (interior s).nonempty  }
 
 /-- The open neighborhoods of a point. See also `opens`. -/
-def open_nhds_of {α : Type*} [topological_space α] (x : α) : set (set α) :=
-{ s : set α | is_open s ∧ x ∈ s }
+def open_nhds_of {α : Type*} [topological_space α] (x : α) : Type* :=
+{ s : set α // is_open s ∧ x ∈ s }
 
 /-- Given an open neighborhood `s` of `(x, x)`, then `(x, x)` has a square open neighborhood
   that is a subset of `s`. -/
@@ -415,7 +442,7 @@ lemma compact.finite_compact_cover [t2_space α] {s : set α} (hs : compact s) {
 begin
   classical, revert U s hs hsC,
   refine finset.induction _ _ t,
-  { intros, refine ⟨λ _, ∅, λ i _, empty_subset _, _⟩, simpa only [subset_empty_iff,
+  { intros, refine ⟨λ _, ⊥, λ i _, empty_subset _, _⟩, simpa only [subset_empty_iff,
       finset.not_mem_empty, Union_neg, Union_empty, not_false_iff] using hsC },
   intros x t hx ih U s hs hsC, simp only [finset.bUnion_insert] at hsC,
   rcases hs.binary_compact_cover (U x).2 (is_open_bUnion $ λ i ∈ t, (U i).2) hsC
@@ -523,6 +550,13 @@ variables [topological_space G]
 def extend_from_opens_def (μ : opens G → ennreal) (A : set G) : ennreal :=
 ⨅ (U : opens G) (h : A ⊆ U), μ U
 
+lemma extend_from_opens_le_opens {μ : opens G → ennreal} (U : opens G) :
+  extend_from_opens_def μ U ≤ μ U :=
+infi_le_of_le U (infi_le _ subset.rfl)
+
+/-- We prove a second version of the previous lemma, because even though the previous lemma applies
+  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
+  definitions involving (enn)reals. -/
 lemma extend_from_opens_le_of_is_open {μ : opens G → ennreal}
   {U : set G} (hU : is_open U) : extend_from_opens_def μ U ≤ μ ⟨U, hU⟩ :=
 infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl)
@@ -532,6 +566,15 @@ lemma extend_from_opens_of_is_open {μ : opens G → ennreal}
   extend_from_opens_def μ U = μ ⟨U, hU⟩ :=
 le_antisymm (infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl))
             (le_infi (λ V, le_infi $ λ hV, h ⟨U, hU⟩ _ hV))
+
+/-- We prove a second version of the previous lemma, because even though the previous lemma applies
+  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
+  definitions involving (enn)reals. -/
+lemma extend_from_opens_opens {μ : opens G → ennreal}
+  (h : ∀ (U V : opens G), U.1 ⊆ V.1 → μ U ≤ μ V) (U : opens G) :
+  extend_from_opens_def μ U = μ U :=
+le_antisymm (infi_le_of_le U (infi_le _ subset.rfl))
+            (le_infi (λ V, le_infi $ λ hV, h U _ hV))
 
 lemma extend_from_opens_empty {μ : opens G → ennreal} (h : μ ∅ = 0) :
   extend_from_opens_def μ ∅ = 0 :=
@@ -544,29 +587,37 @@ lemma extend_from_opens_mono {μ : opens G → ennreal}
   {{A B : set G}} (h2 : A ⊆ B) : extend_from_opens_def μ A ≤ extend_from_opens_def μ B :=
 infi_le_infi $ λ U, infi_le_infi_const (subset.trans h2)
 
+lemma extend_from_opens_exists_open' {μ : opens G → ennreal} {A : set G}
+  (hA : extend_from_opens_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ μ U ≤ extend_from_opens_def μ A + ε :=
+begin
+  have := ennreal.lt_add_right hA (ennreal.zero_lt_coe_iff.2 hε),
+  conv at this {to_lhs, rw extend_from_opens_def }, simp only [infi_lt_iff] at this,
+  rcases this with ⟨U, h1U, h2U⟩, exact ⟨U, h1U, le_of_lt h2U⟩
+end
+
+lemma extend_from_opens_exists_open {μ : opens G → ennreal} {A : set G}
+  (hA : extend_from_opens_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ extend_from_opens_def μ U ≤ extend_from_opens_def μ A + ε :=
+begin
+  rcases extend_from_opens_exists_open' hA hε with ⟨U, h1U, h2U⟩,
+  refine ⟨U, h1U, le_trans (extend_from_opens_le_opens U) h2U⟩
+end
+
 lemma extend_from_opens_Union_nat {μ : opens G → ennreal}
   (h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)) (s : ℕ → set G) :
   extend_from_opens_def μ (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), extend_from_opens_def μ (s i) :=
 begin
   apply ennreal.le_of_forall_epsilon_le, intros ε hε h3,
-  have : ∀ i, extend_from_opens_def μ (s i) < extend_from_opens_def μ (s i) + (ε / 2) / 2 ^ i,
-  { intro i, apply ennreal.lt_add_right (lt_of_le_of_lt (ennreal.le_tsum _) h3), simp only
-      [ennreal.div_pos_iff, ne_of_gt hε, ennreal.pow_ne_top, ennreal.coe_eq_zero, ne.def, or_self,
-      ennreal.one_ne_top, not_false_iff, and_self, ennreal.bit0_eq_top_iff, ennreal.div_zero_iff] },
-  have : ∀ i, ∃ U : opens G, s i ⊆ U ∧ μ U ≤ extend_from_opens_def μ (s i) + (ε / 2) / 2 ^ i,
-  { intro i, cases infi_lt_iff.mp (this i) with U hU, cases infi_lt_iff.mp hU with h1U h2U,
-    exact ⟨U, h1U, le_of_lt h2U⟩ },
+  rcases ennreal.exists_pos_sum_of_encodable (ennreal.zero_lt_coe_iff.2 hε) ℕ with ⟨ε', hε', h2ε'⟩,
+  refine le_trans _ (add_le_add_left' (le_of_lt h2ε')),
+  rw ← ennreal.tsum_add,
+  have : ∀ i, ∃ U : opens G, s i ⊆ U ∧ μ U ≤ extend_from_opens_def μ (s i) + ε' i :=
+    λ i, extend_from_opens_exists_open' (lt_of_le_of_lt (by exact ennreal.le_tsum i) h3) (hε' i),
   choose U hU using this,
   refine le_trans (extend_from_opens_mono (Union_subset_Union (λ i, (hU i).1))) _,
   refine le_trans (extend_from_opens_le_of_is_open $ is_open_Union (λ i, (U i).property)) _,
-  rw ← opens.supr_def, refine le_trans (h2 _) _, convert ennreal.tsum_le_tsum (λ i, (hU i).2),
-  rw [ennreal.tsum_add], congr' 1, norm_cast,
-  have : (∑' (a : ℕ), ε / 2 / ↑(2 ^ a)) = ε,
-  { rw [←nnreal.coe_eq], convert tsum_geometric_two' ε, norm_cast },
-  conv_lhs { rw ← this }, convert ennreal.coe_tsum _, ext1 i,
-  { rw [ennreal.coe_div, ennreal.coe_div], norm_cast, norm_num,
-    { norm_cast, apply ne_of_gt, apply nat.pow_pos, norm_num }},
-  rw [← nnreal.summable_coe], exact_mod_cast summable_geometric_two' (ε : ℝ)
+  rw ← opens.supr_def, refine le_trans (h2 _) _, convert ennreal.tsum_le_tsum (λ i, (hU i).2)
 end
 
 /-- Extending a measure on opens to an outer measure. -/
@@ -592,42 +643,92 @@ lemma extend_from_compacts_of_compact {μ : compacts G → ennreal}
 le_antisymm (supr_le $ λ K', supr_le $ λ hK', h _ ⟨K, h1K⟩ hK')
             (le_extend_from_compacts _ _ subset.rfl)
 
-lemma extend_from_compacts_empty {μ : compacts G → ennreal} (h : μ ∅ = 0) :
+lemma extend_from_compacts_empty {μ : compacts G → ennreal} (h : μ ⊥ = 0) :
   extend_from_compacts_def μ ∅ = 0 :=
 begin
   refine le_antisymm _ (zero_le _), rw ←h,
   refine supr_le (λ K, supr_le (λ hK, _)),
-  have : K = ∅, { ext1, rw [subset_empty_iff.mp hK, compacts.empty_val] }, rw this, refl'
+  have : K = ⊥, { ext1, rw [subset_empty_iff.mp hK, compacts.bot_val] }, rw this, refl'
 end
 
-lemma extend_from_compacts_mono {μ : compacts G → ennreal}
-  {{U V : opens G}} (h2 : U.1 ⊆ V.1) : extend_from_compacts_def μ U ≤ extend_from_compacts_def μ V :=
+lemma extend_from_compacts_mono {μ : compacts G → ennreal} {{U V : opens G}} (h2 : U.1 ⊆ V.1) :
+  extend_from_compacts_def μ U ≤ extend_from_compacts_def μ V :=
 supr_le_supr $ λ K, supr_le_supr_const $ λ hK, subset.trans hK h2
 
+lemma extend_from_compacts_exists_compact' {μ : compacts G → ennreal} {U : opens G}
+  (hU : extend_from_compacts_def μ U < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ K : compacts G, K.1 ⊆ U.1 ∧ extend_from_compacts_def μ U ≤ μ K + ε :=
+begin
+  have h'ε := ennreal.zero_lt_coe_iff.2 hε,
+  cases le_or_lt (extend_from_compacts_def μ U) ε,
+  { exact ⟨⊥, empty_subset _, le_trans h (le_add_of_nonneg_left' (zero_le _))⟩ },
+  have := ennreal.sub_lt_sub_self (ne_of_lt hU) (ne_of_gt $ lt_trans h'ε h) h'ε,
+  conv at this {to_rhs, rw extend_from_compacts_def }, simp only [lt_supr_iff] at this,
+  rcases this with ⟨U, h1U, h2U⟩, refine ⟨U, h1U, _⟩,
+  rw [← ennreal.sub_le_iff_le_add], exact le_of_lt h2U
+end
+
 lemma extend_from_compacts_Union_nat [t2_space G] {μ : compacts G → ennreal}
+  (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (U : ℕ → opens G) :
   extend_from_compacts_def μ (⨆ (i : ℕ), U i) ≤ ∑' (i : ℕ), extend_from_compacts_def μ (U i) :=
 begin
-  have h3 : ∀ (t : finset ℕ) (K : ℕ → compacts G), μ (compacts.bUnion t K) ≤ t.sum (λ i, μ (K i)),
-  { sorry },
+  have h3 : ∀ (t : finset ℕ) (K : ℕ → compacts G), μ (t.sup K) ≤ t.sum (λ i, μ (K i)),
+  { intros t K, refine finset.induction_on t _ _,
+    { simp only [h1, le_zero_iff_eq, finset.sum_empty, finset.sup_empty] },
+    { intros n s hn ih, rw [finset.sup_insert, finset.sum_insert hn],
+      exact le_trans (h2 _ _) (add_le_add_left' ih) }},
   refine supr_le (λ K, supr_le (λ hK, _)),
   rcases compact.elim_finite_subcover K.2 _ (λ i, (U i).2) _ with ⟨t, ht⟩, swap,
   { convert hK, rw [opens.supr_def], refl },
-  have : fintype {x // x ∈ t} := by apply_instance,
   rcases compact.finite_compact_cover K.2 t U (by simp only [ht]) with ⟨K', h1K', h2K'⟩,
-  convert le_trans (h3 t K') _, { ext1, rw h2K', simp only [compacts.bUnion] },
+  convert le_trans (h3 t K') _, { ext1, rw [h2K', compacts.finset_sup_val, finset.sup_eq_supr] },
   refine le_trans (finset.sum_le_sum _) (ennreal.sum_le_tsum t),
   intros i hi, refine le_trans _ (le_supr _ (K' i)),
   refine le_trans (by refl') (le_supr _ (h1K' i hi))
 end
 
 /-- Extending a "measure" on compact sets to an outer_measure on all sets. -/
-def extend_from_compacts [t2_space G] (μ : compacts G → ennreal) (h1 : μ ∅ = 0)
+def extend_from_compacts [t2_space G] (μ : compacts G → ennreal) (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) : outer_measure G :=
 extend_from_opens
   (extend_from_compacts_def μ)
   (extend_from_compacts_empty h1)
-  (extend_from_compacts_Union_nat h2)
+  (extend_from_compacts_Union_nat h1 h2)
+
+lemma extend_from_compacts_opens [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (U : opens G) :
+  extend_from_compacts μ h1 h2 U = extend_from_compacts_def μ U :=
+extend_from_opens_opens extend_from_compacts_mono U
+
+lemma extend_from_compacts_compacts [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (K : compacts G) :
+  extend_from_compacts μ h1 h2 K.1 = μ K :=
+begin
+  apply le_antisymm,
+  { apply ennreal.le_of_forall_epsilon_le, intros ε hε hK,
+    have : ∃ (U : opens G), K.1 ⊆ U.1 ∧ extend_from_compacts_def μ U ≤ μ K + ε, sorry,
+    rcases this with ⟨U, h1U, h2U⟩,
+    apply' infi_le_of_le U, apply' infi_le_of_le h1U h2U },
+  { apply ennreal.le_of_forall_epsilon_le, intros ε hε hK,
+    rcases extend_from_opens_exists_open' hK hε with ⟨U, h1U, h2U⟩,
+    refine le_trans (le_extend_from_compacts K U h1U) h2U }
+end
+
+lemma extend_from_compacts_exists_compact [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) {U : opens G}
+  (hU : extend_from_compacts μ h1 h2 U < ⊤) {ε : nnreal} (hε : ε > 0) : ∃ K : compacts G,
+  K.1 ⊆ U.1 ∧ extend_from_compacts μ h1 h2 U ≤ extend_from_compacts μ h1 h2 K.1 + ε :=
+begin
+  simp only [extend_from_compacts_opens, extend_from_compacts_compacts] at hU ⊢,
+  exact extend_from_compacts_exists_compact' hU hε
+end
+
+lemma extend_from_compacts_exists_open [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) {A : set G}
+  (hA : extend_from_compacts μ h1 h2 A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ extend_from_compacts μ h1 h2 U ≤ extend_from_compacts μ h1 h2 A + ε :=
+extend_from_opens_exists_open hA hε
 
 end extend
 
@@ -734,7 +835,7 @@ set.pi set.univ (λ K, Icc 0 $ index K.1 K₀)
 
 /-- The closure of `{ prehaar K₀ U }` for `U` open neighbourhoods of `1`, contained in `V`. -/
 def cl_prehaar (K₀ : set G) (V : open_nhds_of (1 : G)) : set (compacts G → ℝ) :=
-closure $ prehaar K₀ '' { U : set G | U ⊆ V ∧ is_open U ∧ (1 : G) ∈ U }
+closure $ prehaar K₀ '' { U : set G | U ⊆ V.1 ∧ is_open U ∧ (1 : G) ∈ U }
 
 variables [topological_group G]
 
@@ -823,8 +924,8 @@ begin
     { simp only [finset.mem_filter, h1g₀, true_and], use g,
       simp only [hg, h2g₀, mem_inter_eq, mem_preimage, and_self] },
     exact h2g₀ },
-  refine le_trans (add_le_add (this K₁ $ subset.trans (subset_union_left _ _) h1s)
-    (this K₂ $ subset.trans (subset_union_right _ _) h1s)) _,
+  refine le_trans (add_le_add (this K₁.1 $ subset.trans (subset_union_left _ _) h1s)
+    (this K₂.1 $ subset.trans (subset_union_right _ _) h1s)) _,
   rw [← finset.card_union_eq, finset.filter_union_right],
   { apply finset.card_le_of_subset, apply finset.filter_subset },
   apply finset.disjoint_filter.mpr,
@@ -854,8 +955,8 @@ end
 --   {K : set G} (h1K : compact K) (h2K : (interior K).nonempty) : 0 < prehaar K₀.1 U ⟨K, h1K⟩ :=
 -- by { apply div_pos; norm_cast, apply index_pos ⟨K, h1K, h2K⟩ hU, exact index_pos K₀ hU }
 
-lemma prehaar_empty (K₀ : positive_compacts G) {U : set G} : prehaar K₀.1 U ∅ = 0 :=
-by {simp only [prehaar, compacts.empty_val, index_empty, nat.cast_zero, euclidean_domain.zero_div]}
+lemma prehaar_empty (K₀ : positive_compacts G) {U : set G} : prehaar K₀.1 U ⊥ = 0 :=
+by {simp only [prehaar, compacts.bot_val, index_empty, nat.cast_zero, euclidean_domain.zero_div]}
 
 lemma prehaar_mono {K₀ : positive_compacts G} {U : set G} (hU : (interior U).nonempty)
   {K₁ K₂ : compacts G} (h : K₁.1 ⊆ K₂.1) : prehaar K₀.1 U K₁ ≤ prehaar K₀.1 U K₂ :=
@@ -890,13 +991,13 @@ lemma nonempty_Inter_cl_prehaar (K₀ : positive_compacts G) :
 begin
   have : compact (haar_product K₀.1), { apply compact_univ_pi, intro K, apply compact_Icc },
   rw [← ne_empty_iff_nonempty],
-  have := compact.elim_finite_subfamily_closed this (cl_prehaar K₀) (λ s, is_closed_closure),
+  have := compact.elim_finite_subfamily_closed this (cl_prehaar K₀.1) (λ s, is_closed_closure),
   apply mt this, rintro ⟨t, h1t⟩, rw [← not_nonempty_iff_eq_empty] at h1t, apply h1t,
   let V₀ := ⋂ (V ∈ t), (V : open_nhds_of 1).1,
   have h1V₀ : is_open V₀,
   { apply is_open_bInter, apply finite_mem_finset, rintro ⟨V, hV⟩ h2V, exact hV.1 },
   have h2V₀ : (1 : G) ∈ V₀, { simp only [mem_Inter], rintro ⟨V, hV⟩ h2V, exact hV.2 },
-  refine ⟨prehaar K₀ V₀, _⟩,
+  refine ⟨prehaar K₀.1 V₀, _⟩,
   split,
   { apply prehaar_mem_haar_product K₀, use 1, rwa interior_eq_of_open h1V₀ },
   { simp only [mem_Inter], rintro ⟨V, hV⟩ h2V, apply subset_closure,
@@ -919,9 +1020,9 @@ by { have := (classical.some_spec (nonempty_Inter_cl_prehaar K₀)).2, rw [mem_I
 lemma chaar_nonneg (K₀ : positive_compacts G) (K : compacts G) : 0 ≤ chaar K₀ K :=
 by { have := chaar_mem_haar_product K₀ K (mem_univ _), rw mem_Icc at this, exact this.1 }
 
-lemma chaar_empty (K₀ : positive_compacts G) : chaar K₀ ∅ = 0 :=
+lemma chaar_empty (K₀ : positive_compacts G) : chaar K₀ ⊥ = 0 :=
 begin
-  let eval : (compacts G → ℝ) → ℝ := λ f, f ∅, have : continuous eval := continuous_apply ∅,
+  let eval : (compacts G → ℝ) → ℝ := λ f, f ⊥, have : continuous eval := continuous_apply ⊥,
   show chaar K₀ ∈ eval ⁻¹' {(0 : ℝ)},
   apply mem_of_subset_of_mem _ (chaar_mem_cl_prehaar K₀ ⟨set.univ, is_open_univ, mem_univ _⟩),
   unfold cl_prehaar, rw closure_subset_iff_subset_of_is_closed,
@@ -1019,12 +1120,36 @@ measure.extend_from_compacts
   (λ K₁ K₂, by { norm_cast, simp only [←nnreal.coe_le_coe, nnreal.coe_add, subtype.coe_mk,
     chaar_sup_le] })
 
-variables [measurable_space G] [borel_space G]
+variables [S : measurable_space G] [borel_space G]
+include S
+lemma haar_caratheodory_measurable (K₀ : positive_compacts G) :
+  S ≤ (haar_outer_measure K₀).caratheodory :=
+begin
+  rw @borel_space.measurable_eq G _ _, refine generate_from_le _,
+  intros U hU, rw outer_measure.is_caratheodory_le, intro A,
+  apply ennreal.le_of_forall_epsilon_le, intros ε hε hA,
+  rcases measure.extend_from_compacts_exists_open _ _ hA (nnreal.half_pos hε) with ⟨V, h1V, h2V⟩,
+  change haar_outer_measure K₀ V ≤ haar_outer_measure K₀ A + _ at h2V, -- cleanup
+  have : haar_outer_measure K₀ (V ⊓ ⟨U, hU⟩ : opens G) < ⊤, sorry,
+  rcases measure.extend_from_compacts_exists_compact _ _ this (nnreal.half_pos $ nnreal.half_pos hε) with ⟨K, h1K, h2K⟩,
+  change haar_outer_measure K₀ _ ≤ haar_outer_measure K₀ _ + _ at h2K, -- cleanup
+  have : haar_outer_measure K₀ (V ⊓ ⟨-K.1, closed_of_compact _ K.2⟩ : opens G) < ⊤, sorry,
+  rcases measure.extend_from_compacts_exists_compact _ _ this (nnreal.half_pos $ nnreal.half_pos hε) with ⟨L, h1L, h2L⟩,
+  change haar_outer_measure K₀ _ ≤ haar_outer_measure K₀ _ + _ at h2L, -- cleanup
+  refine le_trans (add_le_add' (outer_measure.mono _ $ inter_subset_inter_left _ h1V)
+    (outer_measure.mono _ $ diff_subset_diff h1V $ subset.trans h1K $ inter_subset_right _ _)) _,
+  convert le_trans (add_le_add' h2K h2L) _,
+  convert le_trans (le_refl (haar_outer_measure K₀ (K.1 ∪ L.1) + ε / 2)) _ using 1,
+  -- convert add_le_add_left' ((haar_outer_measure K₀).union K.1 L.1) using 1,
+  sorry,
+  sorry
+
+end
+
+
 /-- the Haar measure on `G` -/
 def haar_measure (K₀ : positive_compacts G) : measure G :=
-{ m_Union := sorry,
-  trimmed := sorry,
-  ..haar_outer_measure K₀ }
+(haar_outer_measure K₀).to_measure $ haar_caratheodory_measurable K₀
 
 -- lemma is_left_invariant_haar_measure (K₀ : positive_compacts G) :
 --   is_left_invariant (haar_measure K₀) :=
