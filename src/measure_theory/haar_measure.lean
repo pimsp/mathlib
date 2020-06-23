@@ -8,6 +8,14 @@ import measure_theory.borel_space
 import topology.opens
 /-!
 # Haar measure
+
+
+## References
+* Paul Halmos (1950), Measure Theory, §53
+* Jonathan Gleason, Existence and Uniqueness of Haar Measure
+  - Note: step 9, page 8 contains a mistake: the last defined `μ` does not extend the `μ` on compact
+    sets, see Halmos (1950) p. 233, bottom of the page. This makes some other steps (like step 11)
+    invalid.
 -/
 universe variables u v w
 noncomputable theory
@@ -153,6 +161,9 @@ by refine congr_fun (image_eq_preimage_of_inverse _ _) s; intro; simp only [inv_
 @[to_additive, simp] protected lemma inv_inv [group α] {s : set α} : s.inv.inv = s :=
 by { simp only [set.inv, ← preimage_comp], convert preimage_id, ext x, apply inv_inv }
 
+@[to_additive, simp] protected lemma univ_inv [group α] : (univ : set α).inv = univ :=
+preimage_univ
+
 @[simp, to_additive]
 lemma inv_subset_inv [group α] {s t : set α} : s.inv ⊆ t.inv ↔ s ⊆ t :=
 by { apply preimage_subset_preimage_iff, rw surjective.range_eq, apply subset_univ,
@@ -185,7 +196,9 @@ by { rw [← subset_empty_iff], rintro x ⟨_, ⟨⟨⟨_, ⟨⟩⟩⟩⟩⟩ }
 lemma bUnion_empty' (s : α → set β) : (⋃ x ∈ (∅ : set α), s x) = ∅ :=
 supr_emptyset
 
--- @[simp] lemma Union_subtype ⋃ (i : {x // x ∈ ∅}), f i
+lemma subset_diff {s t u : set α} : s ⊆ t \ u ↔ s ⊆ t ∧ disjoint s u :=
+⟨λ h, ⟨λ x hxs, (h hxs).1, λ x ⟨hxs, hxu⟩, (h hxs).2 hxu⟩,
+λ ⟨h1, h2⟩ x hxs, ⟨h1 hxs, λ hxu, h2 ⟨hxs, hxu⟩⟩⟩
 
 end set
 open set
@@ -243,6 +256,7 @@ end finset
 
 section
 variables {α : Type*} {β : Type*}
+/-- A subtype forms a `⊔`-`⊥`-semilattice if the property respects `⊥` and `⊔`. -/
 def subtype.semilattice_sup_bot [semilattice_sup_bot α] {P : α → Prop}
   (Pbot : P ⊥) (Psup : ∀{{x y}}, P x → P y → P (x ⊔ y)) : semilattice_sup_bot {x : α // P x} :=
 { bot := ⟨⊥, Pbot⟩,
@@ -273,7 +287,6 @@ by { unfold infi, congr, convert h1.range_comp g, ext, rw ←h2 }
 lemma supr_congr {α β γ : Type*} {f : α → γ} {g : β → γ} [complete_lattice γ] (h : α → β)
   (h1 : function.surjective h) (h2 : ∀ x, g (h x) = f x) : (⨆ x, f x) = ⨆ y, g y  :=
 by { unfold supr, congr, convert h1.range_comp g, ext, rw ←h2 }
-
 
 @[simp]
 lemma injective_preimage {α β : Type*} {f : α → β} : injective (preimage f) ↔ surjective f :=
@@ -319,13 +332,15 @@ end
 
 end homeomorph
 
-section
+namespace topological_space
 variables {α : Type*} {β : Type*} [topological_space α] [topological_space β]
-
 
 lemma is_closed_preimage {f : α → β} (hf : continuous f) {s : set β} (h : is_closed s) :
   is_closed (f ⁻¹' s) :=
 by exact continuous_iff_is_closed.mp hf s h
+
+-- protected def int (s : set α) : opens α := ⟨interior s, is_open_interior⟩
+-- localized "postfix `ᵒ`:(max+1) := topological_space.int" in topology
 
 /-- The compact sets of a topological space. See also `nonempty_compacts`. -/
 def compacts (α : Type*) [topological_space α] : Type* := { s : set α // compact s }
@@ -344,14 +359,20 @@ subtype.eq h
   (s.sup K).1 = s.sup (λ x, (K x).1) :=
 subtype.sup_val _ _
 
+instance compacts.inhabited : inhabited (compacts α) := ⟨⊥⟩
+
 /-- The compact sets with nonempty interior of a topological space. See also `compacts` and
   `nonempty_compacts`. -/
+@[nolint has_inhabited_instance]
 def positive_compacts (α : Type*) [topological_space α] : Type* :=
 { s : set α // compact s ∧ (interior s).nonempty  }
 
 /-- The open neighborhoods of a point. See also `opens`. -/
 def open_nhds_of {α : Type*} [topological_space α] (x : α) : Type* :=
 { s : set α // is_open s ∧ x ∈ s }
+
+instance open_nhds_of.inhabited {α : Type*} [topological_space α] (x : α) :
+  inhabited (open_nhds_of x) := ⟨⟨set.univ, is_open_univ, mem_univ _⟩⟩
 
 /-- Given an open neighborhood `s` of `(x, x)`, then `(x, x)` has a square open neighborhood
   that is a subset of `s`. -/
@@ -395,6 +416,39 @@ begin
   rw [mem_preimage] at this, convert this, simp only [mul_assoc, mul_inv_cancel_left]
 end
 
+/-- In a locally compact space, every point has an open neighborhood with compact closure -/
+lemma exists_open_with_compact_closure [locally_compact_space α] [t2_space α] (x : α) :
+  ∃ (U : set α), is_open U ∧ x ∈ U ∧ compact (closure U) :=
+begin
+  rcases locally_compact_space.local_compact_nhds x set.univ filter.univ_mem_sets with
+    ⟨K, h1K, _, h2K⟩,
+  rw [mem_nhds_sets_iff] at h1K, rcases h1K with ⟨t, h1t, h2t, h3t⟩,
+  exact ⟨t, h2t, h3t, compact_of_is_closed_subset h2K is_closed_closure $
+    closure_minimal h1t $ closed_of_compact K h2K⟩,
+end
+
+/-- In a locally compact space, every compact set is contained in the interior of a compact set. -/
+lemma exists_compact_superset [locally_compact_space α] [t2_space α] {K : set α}
+  (hK : compact K) : ∃ (K' : set α), compact K' ∧ K ⊆ interior K' :=
+begin
+  choose U hU using λ x : K, exists_open_with_compact_closure (x : α),
+  rcases hK.elim_finite_subcover U (λ x, (hU x).1) (λ x hx, ⟨_, ⟨⟨x, hx⟩, rfl⟩, (hU ⟨x, hx⟩).2.1⟩) with
+    ⟨s, hs⟩,
+  refine ⟨⋃ (i : K) (H : i ∈ s), closure (U i), _, _⟩,
+  exact (finite_mem_finset s).compact_bUnion (λ x hx, (hU x).2.2),
+  refine subset.trans hs _, rw subset_interior_iff_subset_of_open,
+  exact bUnion_subset_bUnion_right (λ x hx, subset_closure),
+  exact is_open_bUnion (λ x hx, (hU x).1)
+end
+
+
+
+end topological_space
+
+section compact
+variables {α : Type*} [topological_space α]
+
+
 /-- If a compact set is covered by two open sets, then we can cover it by two compact subsets. -/
 lemma compact.binary_compact_cover [t2_space α] {K U V : set α} (hK : compact K)
   (hU : is_open U) (hV : is_open V) (h2K : K ⊆ U ∪ V) :
@@ -418,19 +472,17 @@ lemma compact.inter [t2_space α] {s t : set α} (hs : compact s) (ht : compact 
   compact (s ∩ t) :=
 hs.inter_right $ closed_of_compact t ht
 
+end compact
+
+namespace topological_space
+
+variables {α : Type*} [topological_space α]
 variables {ι : Type*} {π : ι → Type*} [∀i, topological_space (π i)]
 
 
 /-- A version of Tychonoff's theorem that uses `set.pi`. -/
 lemma compact_univ_pi {s : Πi:ι, set (π i)} (h : ∀i, compact (s i)) : compact (set.pi set.univ s) :=
 by { convert compact_pi_infinite h, simp only [pi, forall_prop_of_true, mem_univ] }
-
-end
-
-namespace topological_space
-
-variables {α : Type*} [topological_space α]
-
 
 lemma bUnion_finset_empty {α β} {g : α → set β} : (⋃x ∈ (∅ : finset α), g x) = ∅ :=
 by simp
@@ -471,9 +523,18 @@ end opens
 
 end topological_space
 open topological_space
+-- open_locale topology
 
 
 section
+-- lemma generate_from_compacts {α : Type u} [topological_space α] :
+--   measurable_space.generate_from {K : set α | compact K} = borel α :=
+-- begin
+--   ext, split; refine generate_from_le _ s,
+--   { intros K hK, sorry },
+--   { intros U hU, sorry }
+-- end
+
 variables {α : Type u} [measurable_space α]
           {β : Type v} [measurable_space β]
 
@@ -487,6 +548,13 @@ namespace ennreal
 variable {α : Type*}
 protected lemma sum_le_tsum {f : α → ennreal} (s : finset α) : s.sum f ≤ tsum f :=
 sum_le_tsum s (λ x hx, zero_le _) ennreal.summable
+
+
+-- lemma add_supr_le {ι} [nonempty ι] {s : ι → ennreal} {x y : ennreal} (h : ∀i, x + s i ≤ y) :
+--   x + supr s ≤ y :=
+-- begin
+--   rw [add_supr], refine supr_le h
+-- end
 
 end ennreal
 
@@ -504,9 +572,17 @@ variable [topological_space α]
 structure measure.regular (μ : measure α) : Prop :=
   (le_top_of_compact : ∀ {{K : set α}}, compact K → μ K < ⊤)
   (outer_regular : ∀ {{A : set α}}, is_measurable A →
-    μ A = ⨅ (U : set α) (h : is_open U) (h2 : A ⊆ U), μ U)
+    (⨅ (U : set α) (h : is_open U) (h2 : A ⊆ U), μ U) ≤ μ A)
   (inner_regular : ∀ {{U : set α}}, is_open U →
-    μ U = ⨆ (K : set α) (h : compact K) (h2 : K ⊆ U), μ K)
+    μ U ≤ ⨆ (K : set α) (h : compact K) (h2 : K ⊆ U), μ K)
+
+lemma measure.regular.outer_regular_eq {μ : measure α} (hμ : μ.regular) {{A : set α}}
+  (hA : is_measurable A) : (⨅ (U : set α) (h : is_open U) (h2 : A ⊆ U), μ U) = μ A :=
+le_antisymm (hμ.outer_regular hA) $ le_infi $ λ s, le_infi $ λ hs, le_infi $ λ h2s, μ.mono h2s
+
+lemma measure.regular.inner_regular_eq {μ : measure α} (hμ : μ.regular) {{U : set α}}
+  (hU : is_open U) : (⨆ (K : set α) (h : compact K) (h2 : K ⊆ U), μ K) = μ U :=
+le_antisymm (supr_le $ λ s, supr_le $ λ hs, supr_le $ λ h2s, μ.mono h2s) (hμ.inner_regular hU)
 
 variables {G : Type w}
 
@@ -540,138 +616,72 @@ end
 --   (is_regular : μ.regular)
 --   (right_invariant : is_right_invariant μ)
 
-namespace measure
+namespace outer_measure
+
+lemma le_inter_add_diff {α} {m : outer_measure α} {t : set α} (s : set α) :
+  m t ≤ m (t ∩ s) + m (t \ s) :=
+by { convert m.union _ _, rw inter_union_diff t s }
 
 section extend
 variables [topological_space G]
 
-/-- Extending a "measure" on opens to an outer measure on all sets.
-  This is only the underlying function. -/
-def extend_from_opens_def (μ : opens G → ennreal) (A : set G) : ennreal :=
-⨅ (U : opens G) (h : A ⊆ U), μ U
+/-! In this section we work with *contents*. A content is a function from a certain class of subsets
+  to `ennreal` (or `nnreal`) that is additive, subadditive and monotone.
+  In this section, we show:
+  * Given a content `λ` on compact sets, we get a countably subadditive map that vanishes at `∅`.
+    In Halmos (1950) this is called the *inner content* `λ*` of `λ`.
+  * Given an inner content, we get an outer measure
+-/
 
-lemma extend_from_opens_le_opens {μ : opens G → ennreal} (U : opens G) :
-  extend_from_opens_def μ U ≤ μ U :=
-infi_le_of_le U (infi_le _ subset.rfl)
-
-/-- We prove a second version of the previous lemma, because even though the previous lemma applies
-  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
-  definitions involving (enn)reals. -/
-lemma extend_from_opens_le_of_is_open {μ : opens G → ennreal}
-  {U : set G} (hU : is_open U) : extend_from_opens_def μ U ≤ μ ⟨U, hU⟩ :=
-infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl)
-
-lemma extend_from_opens_of_is_open {μ : opens G → ennreal}
-  (h : ∀ (U V : opens G), U.1 ⊆ V.1 → μ U ≤ μ V) {U : set G} (hU : is_open U) :
-  extend_from_opens_def μ U = μ ⟨U, hU⟩ :=
-le_antisymm (infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl))
-            (le_infi (λ V, le_infi $ λ hV, h ⟨U, hU⟩ _ hV))
-
-/-- We prove a second version of the previous lemma, because even though the previous lemma applies
-  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
-  definitions involving (enn)reals. -/
-lemma extend_from_opens_opens {μ : opens G → ennreal}
-  (h : ∀ (U V : opens G), U.1 ⊆ V.1 → μ U ≤ μ V) (U : opens G) :
-  extend_from_opens_def μ U = μ U :=
-le_antisymm (infi_le_of_le U (infi_le _ subset.rfl))
-            (le_infi (λ V, le_infi $ λ hV, h U _ hV))
-
-lemma extend_from_opens_empty {μ : opens G → ennreal} (h : μ ∅ = 0) :
-  extend_from_opens_def μ ∅ = 0 :=
-begin
-  refine le_antisymm _ (zero_le _), rw ←h,
-  exact infi_le_of_le ∅ (infi_le _ subset.rfl)
-end
-
-lemma extend_from_opens_mono {μ : opens G → ennreal}
-  {{A B : set G}} (h2 : A ⊆ B) : extend_from_opens_def μ A ≤ extend_from_opens_def μ B :=
-infi_le_infi $ λ U, infi_le_infi_const (subset.trans h2)
-
-lemma extend_from_opens_exists_open' {μ : opens G → ennreal} {A : set G}
-  (hA : extend_from_opens_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
-  ∃ U : opens G, A ⊆ U ∧ μ U ≤ extend_from_opens_def μ A + ε :=
-begin
-  have := ennreal.lt_add_right hA (ennreal.zero_lt_coe_iff.2 hε),
-  conv at this {to_lhs, rw extend_from_opens_def }, simp only [infi_lt_iff] at this,
-  rcases this with ⟨U, h1U, h2U⟩, exact ⟨U, h1U, le_of_lt h2U⟩
-end
-
-lemma extend_from_opens_exists_open {μ : opens G → ennreal} {A : set G}
-  (hA : extend_from_opens_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
-  ∃ U : opens G, A ⊆ U ∧ extend_from_opens_def μ U ≤ extend_from_opens_def μ A + ε :=
-begin
-  rcases extend_from_opens_exists_open' hA hε with ⟨U, h1U, h2U⟩,
-  refine ⟨U, h1U, le_trans (extend_from_opens_le_opens U) h2U⟩
-end
-
-lemma extend_from_opens_Union_nat {μ : opens G → ennreal}
-  (h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)) (s : ℕ → set G) :
-  extend_from_opens_def μ (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), extend_from_opens_def μ (s i) :=
-begin
-  apply ennreal.le_of_forall_epsilon_le, intros ε hε h3,
-  rcases ennreal.exists_pos_sum_of_encodable (ennreal.zero_lt_coe_iff.2 hε) ℕ with ⟨ε', hε', h2ε'⟩,
-  refine le_trans _ (add_le_add_left' (le_of_lt h2ε')),
-  rw ← ennreal.tsum_add,
-  have : ∀ i, ∃ U : opens G, s i ⊆ U ∧ μ U ≤ extend_from_opens_def μ (s i) + ε' i :=
-    λ i, extend_from_opens_exists_open' (lt_of_le_of_lt (by exact ennreal.le_tsum i) h3) (hε' i),
-  choose U hU using this,
-  refine le_trans (extend_from_opens_mono (Union_subset_Union (λ i, (hU i).1))) _,
-  refine le_trans (extend_from_opens_le_of_is_open $ is_open_Union (λ i, (U i).property)) _,
-  rw ← opens.supr_def, refine le_trans (h2 _) _, convert ennreal.tsum_le_tsum (λ i, (hU i).2)
-end
-
-/-- Extending a measure on opens to an outer measure. -/
-def extend_from_opens (μ : opens G → ennreal) (h1 : μ ∅ = 0)
-  (h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)) : outer_measure G :=
-{ measure_of := extend_from_opens_def μ,
-  empty := extend_from_opens_empty h1,
-  mono := extend_from_opens_mono,
-  Union_nat := extend_from_opens_Union_nat h2 }
-
-/-- Extending a "measure" on compact sets to a function on all opens.
-  This is only the underlying function. -/
-def extend_from_compacts_def (μ : compacts G → ennreal) (U : opens G) : ennreal :=
+/-- Constructing the inner content of a content. -/
+def inner_content (μ : compacts G → ennreal) (U : opens G) : ennreal :=
 ⨆ (K : compacts G) (h : K.1 ⊆ U.1), μ K
 
-lemma le_extend_from_compacts {μ : compacts G → ennreal} (K : compacts G) (U : opens G)
-  (h2 : K.1 ⊆ U.1) : μ K ≤ extend_from_compacts_def μ U :=
+lemma le_inner_content {μ : compacts G → ennreal} (K : compacts G) (U : opens G)
+  (h2 : K.1 ⊆ U.1) : μ K ≤ inner_content μ U :=
 le_supr_of_le K $ le_supr _ h2
 
-lemma extend_from_compacts_of_compact {μ : compacts G → ennreal}
-  (h : ∀ (K₁ K₂ : compacts G), K₁.1 ⊆ K₂.1 → μ K₁ ≤ μ K₂) {K : set G} (h1K : compact K)
-  (h2K : is_open K) : extend_from_compacts_def μ ⟨K, h2K⟩ = μ ⟨K, h1K⟩ :=
-le_antisymm (supr_le $ λ K', supr_le $ λ hK', h _ ⟨K, h1K⟩ hK')
-            (le_extend_from_compacts _ _ subset.rfl)
+lemma inner_content_le {μ : compacts G → ennreal}
+  (h : ∀ (K₁ K₂ : compacts G), K₁.1 ⊆ K₂.1 → μ K₁ ≤ μ K₂)
+  (U : opens G) (K : compacts G)
+  (h2 : U.1 ⊆ K.1) : inner_content μ U ≤ μ K :=
+supr_le $ λ K', supr_le $ λ hK', h _ _ (subset.trans hK' h2)
 
-lemma extend_from_compacts_empty {μ : compacts G → ennreal} (h : μ ⊥ = 0) :
-  extend_from_compacts_def μ ∅ = 0 :=
+lemma inner_content_of_compact {μ : compacts G → ennreal}
+  (h : ∀ (K₁ K₂ : compacts G), K₁.1 ⊆ K₂.1 → μ K₁ ≤ μ K₂) {K : set G} (h1K : compact K)
+  (h2K : is_open K) : inner_content μ ⟨K, h2K⟩ = μ ⟨K, h1K⟩ :=
+le_antisymm (supr_le $ λ K', supr_le $ λ hK', h _ ⟨K, h1K⟩ hK')
+            (le_inner_content _ _ subset.rfl)
+
+lemma inner_content_empty {μ : compacts G → ennreal} (h : μ ⊥ = 0) :
+  inner_content μ ∅ = 0 :=
 begin
   refine le_antisymm _ (zero_le _), rw ←h,
   refine supr_le (λ K, supr_le (λ hK, _)),
   have : K = ⊥, { ext1, rw [subset_empty_iff.mp hK, compacts.bot_val] }, rw this, refl'
 end
 
-lemma extend_from_compacts_mono {μ : compacts G → ennreal} {{U V : opens G}} (h2 : U.1 ⊆ V.1) :
-  extend_from_compacts_def μ U ≤ extend_from_compacts_def μ V :=
+lemma inner_content_mono {μ : compacts G → ennreal} {{U V : opens G}} (h2 : U.1 ⊆ V.1) :
+  inner_content μ U ≤ inner_content μ V :=
 supr_le_supr $ λ K, supr_le_supr_const $ λ hK, subset.trans hK h2
 
-lemma extend_from_compacts_exists_compact' {μ : compacts G → ennreal} {U : opens G}
-  (hU : extend_from_compacts_def μ U < ⊤) {ε : nnreal} (hε : ε > 0) :
-  ∃ K : compacts G, K.1 ⊆ U.1 ∧ extend_from_compacts_def μ U ≤ μ K + ε :=
+lemma inner_content_exists_compact {μ : compacts G → ennreal} {U : opens G}
+  (hU : inner_content μ U < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ K : compacts G, K.1 ⊆ U.1 ∧ inner_content μ U ≤ μ K + ε :=
 begin
   have h'ε := ennreal.zero_lt_coe_iff.2 hε,
-  cases le_or_lt (extend_from_compacts_def μ U) ε,
+  cases le_or_lt (inner_content μ U) ε,
   { exact ⟨⊥, empty_subset _, le_trans h (le_add_of_nonneg_left' (zero_le _))⟩ },
   have := ennreal.sub_lt_sub_self (ne_of_lt hU) (ne_of_gt $ lt_trans h'ε h) h'ε,
-  conv at this {to_rhs, rw extend_from_compacts_def }, simp only [lt_supr_iff] at this,
+  conv at this {to_rhs, rw inner_content }, simp only [lt_supr_iff] at this,
   rcases this with ⟨U, h1U, h2U⟩, refine ⟨U, h1U, _⟩,
   rw [← ennreal.sub_le_iff_le_add], exact le_of_lt h2U
 end
 
-lemma extend_from_compacts_Union_nat [t2_space G] {μ : compacts G → ennreal}
+lemma inner_content_Union_nat [t2_space G] {μ : compacts G → ennreal}
   (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (U : ℕ → opens G) :
-  extend_from_compacts_def μ (⨆ (i : ℕ), U i) ≤ ∑' (i : ℕ), extend_from_compacts_def μ (U i) :=
+  inner_content μ (⨆ (i : ℕ), U i) ≤ ∑' (i : ℕ), inner_content μ (U i) :=
 begin
   have h3 : ∀ (t : finset ℕ) (K : ℕ → compacts G), μ (t.sup K) ≤ t.sum (λ i, μ (K i)),
   { intros t K, refine finset.induction_on t _ _,
@@ -688,49 +698,148 @@ begin
   refine le_trans (by refl') (le_supr _ (h1K' i hi))
 end
 
+/-- Extending an "inner content" on opens to an outer measure on all sets.
+  This is only the underlying function.
+
+  Remark: this is very similar to `outer_measure.of_function μ` (where we treat values where
+  `μ` is undefined as `⊤`). -/
+def of_inner_content_def (μ : opens G → ennreal) (A : set G) : ennreal :=
+⨅ (U : opens G) (h : A ⊆ U), μ U
+
+lemma of_inner_content_le_opens {μ : opens G → ennreal} (U : opens G) :
+  of_inner_content_def μ U ≤ μ U :=
+infi_le_of_le U (infi_le _ subset.rfl)
+
+/-- We prove a second version of the previous lemma, because even though the previous lemma applies
+  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
+  definitions involving (enn)reals. -/
+lemma of_inner_content_le_of_is_open {μ : opens G → ennreal}
+  {U : set G} (hU : is_open U) : of_inner_content_def μ U ≤ μ ⟨U, hU⟩ :=
+infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl)
+
+lemma of_inner_content_of_is_open {μ : opens G → ennreal}
+  (h : ∀ (U V : opens G), U.1 ⊆ V.1 → μ U ≤ μ V) {U : set G} (hU : is_open U) :
+  of_inner_content_def μ U = μ ⟨U, hU⟩ :=
+le_antisymm (infi_le_of_le ⟨U, hU⟩ (infi_le _ subset.rfl))
+            (le_infi (λ V, le_infi $ λ hV, h ⟨U, hU⟩ _ hV))
+
+/-- We prove a second version of the previous lemma, because even though the previous lemma applies
+  in this case, applying it will take 10+ seconds to unify, presumably because it unfolds all
+  definitions involving (enn)reals. -/
+lemma of_inner_content_opens {μ : opens G → ennreal}
+  (h : ∀ (U V : opens G), U.1 ⊆ V.1 → μ U ≤ μ V) (U : opens G) :
+  of_inner_content_def μ U = μ U :=
+le_antisymm (infi_le_of_le U (infi_le _ subset.rfl))
+            (le_infi (λ V, le_infi $ λ hV, h U _ hV))
+
+lemma of_inner_content_empty {μ : opens G → ennreal} (h : μ ∅ = 0) :
+  of_inner_content_def μ ∅ = 0 :=
+begin
+  refine le_antisymm _ (zero_le _), rw ←h,
+  exact infi_le_of_le ∅ (infi_le _ subset.rfl)
+end
+
+lemma of_inner_content_mono {μ : opens G → ennreal}
+  {{A B : set G}} (h2 : A ⊆ B) : of_inner_content_def μ A ≤ of_inner_content_def μ B :=
+infi_le_infi $ λ U, infi_le_infi_const (subset.trans h2)
+
+lemma of_inner_content_exists_open' {μ : opens G → ennreal} {A : set G}
+  (hA : of_inner_content_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ μ U ≤ of_inner_content_def μ A + ε :=
+begin
+  have := ennreal.lt_add_right hA (ennreal.zero_lt_coe_iff.2 hε),
+  conv at this {to_lhs, rw of_inner_content_def }, simp only [infi_lt_iff] at this,
+  rcases this with ⟨U, h1U, h2U⟩, exact ⟨U, h1U, le_of_lt h2U⟩
+end
+
+lemma of_inner_content_exists_open {μ : opens G → ennreal} {A : set G}
+  (hA : of_inner_content_def μ A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ of_inner_content_def μ U ≤ of_inner_content_def μ A + ε :=
+begin
+  rcases of_inner_content_exists_open' hA hε with ⟨U, h1U, h2U⟩,
+  refine ⟨U, h1U, le_trans (of_inner_content_le_opens U) h2U⟩
+end
+
+lemma of_inner_content_Union_nat {μ : opens G → ennreal}
+  (h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)) (s : ℕ → set G) :
+  of_inner_content_def μ (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), of_inner_content_def μ (s i) :=
+begin
+  apply ennreal.le_of_forall_epsilon_le, intros ε hε h3,
+  rcases ennreal.exists_pos_sum_of_encodable (ennreal.zero_lt_coe_iff.2 hε) ℕ with ⟨ε', hε', h2ε'⟩,
+  refine le_trans _ (add_le_add_left' (le_of_lt h2ε')),
+  rw ← ennreal.tsum_add,
+  have : ∀ i, ∃ U : opens G, s i ⊆ U ∧ μ U ≤ of_inner_content_def μ (s i) + ε' i :=
+    λ i, of_inner_content_exists_open' (lt_of_le_of_lt (by exact ennreal.le_tsum i) h3) (hε' i),
+  choose U hU using this,
+  refine le_trans (of_inner_content_mono (Union_subset_Union (λ i, (hU i).1))) _,
+  refine le_trans (of_inner_content_le_of_is_open $ is_open_Union (λ i, (U i).property)) _,
+  rw ← opens.supr_def, refine le_trans (h2 _) _, convert ennreal.tsum_le_tsum (λ i, (hU i).2)
+end
+
+/-- Extending a inner content on opens to an outer measure. -/
+def of_inner_content (μ : opens G → ennreal) (h1 : μ ∅ = 0)
+  (h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)) : outer_measure G :=
+{ measure_of := of_inner_content_def μ,
+  empty := of_inner_content_empty h1,
+  mono := of_inner_content_mono,
+  Union_nat := of_inner_content_Union_nat h2 }
+
+lemma of_inner_content_caratheodory {μ : opens G → ennreal} {h1 : μ ∅ = 0}
+  {h2 : ∀ (s : ℕ → opens G), μ (⨆ (i : ℕ), s i) ≤ ∑' (i : ℕ), μ (s i)} (A : set G) :
+  (of_inner_content μ h1 h2).caratheodory.is_measurable A ↔ ∀ (U : opens G),
+  of_inner_content μ h1 h2 (U ∩ A) + of_inner_content μ h1 h2 (U \ A) ≤ of_inner_content μ h1 h2 U :=
+begin
+  split,
+  { intros h U, exact ge_of_eq (h U) },
+  { intros h B, refine le_antisymm (le_inter_add_diff _) _,
+    refine le_infi _, intro U, refine le_infi _, intro hU,
+    refine le_trans _ (le_trans (h U) $ of_inner_content_le_opens _),
+    refine add_le_add' (of_inner_content_mono $ inter_subset_inter_left _ hU)
+      (of_inner_content_mono $ diff_subset_diff_left hU) }
+end
+
 /-- Extending a "measure" on compact sets to an outer_measure on all sets. -/
-def extend_from_compacts [t2_space G] (μ : compacts G → ennreal) (h1 : μ ⊥ = 0)
+def of_content [t2_space G] (μ : compacts G → ennreal) (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) : outer_measure G :=
-extend_from_opens
-  (extend_from_compacts_def μ)
-  (extend_from_compacts_empty h1)
-  (extend_from_compacts_Union_nat h1 h2)
+of_inner_content
+  (inner_content μ)
+  (inner_content_empty h1)
+  (inner_content_Union_nat h1 h2)
 
-lemma extend_from_compacts_opens [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
-  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (U : opens G) :
-  extend_from_compacts μ h1 h2 U = extend_from_compacts_def μ U :=
-extend_from_opens_opens extend_from_compacts_mono U
+variables [t2_space G] {μ : compacts G → ennreal} {h1 : μ ⊥ = 0}
+  {h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂}
 
-lemma extend_from_compacts_compacts [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
-  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (K : compacts G) :
-  extend_from_compacts μ h1 h2 K.1 = μ K :=
-begin
-  apply le_antisymm,
-  { apply ennreal.le_of_forall_epsilon_le, intros ε hε hK,
-    have : ∃ (U : opens G), K.1 ⊆ U.1 ∧ extend_from_compacts_def μ U ≤ μ K + ε, sorry,
-    rcases this with ⟨U, h1U, h2U⟩,
-    apply' infi_le_of_le U, apply' infi_le_of_le h1U h2U },
-  { apply ennreal.le_of_forall_epsilon_le, intros ε hε hK,
-    rcases extend_from_opens_exists_open' hK hε with ⟨U, h1U, h2U⟩,
-    refine le_trans (le_extend_from_compacts K U h1U) h2U }
-end
+lemma of_content_opens (U : opens G) : of_content μ h1 h2 U = inner_content μ U :=
+of_inner_content_opens inner_content_mono U
 
-lemma extend_from_compacts_exists_compact [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+lemma le_of_content_compacts (K : compacts G) : μ K ≤ of_content μ h1 h2 K.1 :=
+le_infi $ λ U, le_infi $ le_inner_content K U
+
+lemma of_content_interior_compacts (h3 : ∀ (K₁ K₂ : compacts G), K₁.1 ⊆ K₂.1 → μ K₁ ≤ μ K₂)
+  (K : compacts G) : of_content μ h1 h2 (interior K.1) ≤ μ K :=
+le_trans (le_of_eq (of_content_opens ⟨interior K.1, is_open_interior⟩))
+         (inner_content_le h3 _ _ interior_subset)
+
+lemma of_content_exists_compact {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) {U : opens G}
-  (hU : extend_from_compacts μ h1 h2 U < ⊤) {ε : nnreal} (hε : ε > 0) : ∃ K : compacts G,
-  K.1 ⊆ U.1 ∧ extend_from_compacts μ h1 h2 U ≤ extend_from_compacts μ h1 h2 K.1 + ε :=
+  (hU : of_content μ h1 h2 U < ⊤) {ε : nnreal} (hε : ε > 0) : ∃ K : compacts G,
+  K.1 ⊆ U.1 ∧ of_content μ h1 h2 U ≤ of_content μ h1 h2 K.1 + ε :=
 begin
-  simp only [extend_from_compacts_opens, extend_from_compacts_compacts] at hU ⊢,
-  exact extend_from_compacts_exists_compact' hU hε
+  rw [of_content_opens] at hU ⊢,
+  rcases inner_content_exists_compact hU hε with ⟨K, h1K, h2K⟩,
+  exact ⟨K, h1K, le_trans h2K $ add_le_add_right' $ le_of_content_compacts K⟩
 end
 
-lemma extend_from_compacts_exists_open [t2_space G] {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
+lemma of_content_exists_open {μ : compacts G → ennreal} (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) {A : set G}
-  (hA : extend_from_compacts μ h1 h2 A < ⊤) {ε : nnreal} (hε : ε > 0) :
-  ∃ U : opens G, A ⊆ U ∧ extend_from_compacts μ h1 h2 U ≤ extend_from_compacts μ h1 h2 A + ε :=
-extend_from_opens_exists_open hA hε
+  (hA : of_content μ h1 h2 A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ of_content μ h1 h2 U ≤ of_content μ h1 h2 A + ε :=
+of_inner_content_exists_open hA hε
 
 end extend
+end outer_measure
+
+namespace measure
 
 /-- The conjugate of a measure on a topological group. -/
 protected def conj [measurable_space G] [group G] (μ : measure G) : measure G :=
@@ -739,48 +848,48 @@ protected def conj [measurable_space G] [group G] (μ : measure G) : measure G :
 variables [measurable_space G] [group G] [topological_space G] [topological_group G] [borel_space G]
 
 lemma conj_apply (μ : measure G) {s : set G} (hs : is_measurable s) :
-  μ.conj s = μ (inv ⁻¹' s) :=
-by { unfold measure.conj, rw [measure.map_apply measurable_inv hs] }
+  μ.conj s = μ s.inv :=
+by { unfold measure.conj, rw [measure.map_apply measurable_inv hs, inv_preimage] }
 
 @[simp] lemma conj_conj (μ : measure G) : μ.conj.conj = μ :=
 begin
-  ext1 s hs,
-  rw [μ.conj.conj_apply hs, μ.conj_apply (measurable_inv.preimage hs), ←preimage_comp],
-  congr, ext g, rw [function.comp_app, inv_inv],
+  ext1 s hs, rw [μ.conj.conj_apply hs, μ.conj_apply, set.inv_inv], exact measurable_inv.preimage hs
 end
 
 variables {μ : measure G}
 
 lemma nonzero.conj (h : μ.nonzero) : μ.conj.nonzero :=
-by { dsimp only [nonzero], rwa [μ.conj_apply is_measurable.univ, preimage_univ] }
+by { dsimp only [nonzero], rwa [μ.conj_apply is_measurable.univ, set.univ_inv] }
 
 lemma regular.conj [t2_space G] (h : μ.regular) : μ.conj.regular :=
 begin
   split,
   { intros K hK, rw [μ.conj_apply hK.is_measurable], apply h.le_top_of_compact,
     exact (homeomorph.inv G).compact_preimage.mpr hK },
-  { intros A hA, rw [μ.conj_apply hA, h.outer_regular (measurable_inv.preimage hA)],
-    symmetry, apply infi_congr (preimage inv) (equiv.inv G).injective.surjective_preimage,
+  { intros A hA, rw [μ.conj_apply hA, ← h.outer_regular_eq],
+    refine le_of_eq _, apply infi_congr (preimage inv) (equiv.inv G).injective.surjective_preimage,
     intro U, apply infi_congr_Prop (homeomorph.inv G).is_open_preimage, intro hU,
     apply infi_congr_Prop,
     { apply preimage_subset_preimage_iff, rw [surjective.range_eq], apply subset_univ,
       exact (equiv.inv G).surjective },
-    intro h2U, rw [μ.conj_apply hU.is_measurable] },
-  { intros U hU, rw [μ.conj_apply hU.is_measurable, h.inner_regular (continuous_inv U hU)],
-    symmetry,
+    intro h2U, rw [μ.conj_apply hU.is_measurable, inv_preimage],
+    exact measurable_inv.preimage hA },
+  { intros U hU, rw [μ.conj_apply hU.is_measurable, ← h.inner_regular_eq],
+    refine ge_of_eq _,
     apply supr_congr (preimage inv) (equiv.inv G).injective.surjective_preimage,
     intro K, apply supr_congr_Prop (homeomorph.inv G).compact_preimage, intro hK,
     apply supr_congr_Prop,
     { apply preimage_subset_preimage_iff, rw [surjective.range_eq], apply subset_univ,
       exact (equiv.inv G).surjective },
-    intro h2U, rw [μ.conj_apply hK.is_measurable] },
+    intro h2U, rw [μ.conj_apply hK.is_measurable, inv_preimage],
+    exact continuous_inv U hU },
 end
-
 
 end measure
 
 section conj
-variables [measurable_space G] [group G] [topological_space G] [topological_group G] [borel_space G] {μ : measure G}
+variables [measurable_space G] [group G] [topological_space G] [topological_group G] [borel_space G]
+  {μ : measure G}
 
 @[simp] lemma regular_conj_iff [t2_space G] : μ.conj.regular ↔ μ.regular :=
 by { refine ⟨λ h, _, measure.regular.conj⟩, rw ←μ.conj_conj, exact measure.regular.conj h }
@@ -790,14 +899,14 @@ lemma is_right_invariant_conj' (h : is_left_invariant μ) :
 begin
   intros g A hA, rw [μ.conj_apply (measurable_mul_right g A hA), μ.conj_apply hA],
   convert h g⁻¹ (measurable_inv A hA) using 2,
-  simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
+  simp only [←preimage_comp, set.inv], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
 end
 
 lemma is_left_invariant_conj' (h : is_right_invariant μ) : is_left_invariant μ.conj :=
 begin
   intros g A hA, rw [μ.conj_apply (measurable_mul_left g A hA), μ.conj_apply hA],
   convert h g⁻¹ (measurable_inv A hA) using 2,
-  simp only [←preimage_comp], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
+  simp only [←preimage_comp, set.inv], congr' 1, ext h, simp only [mul_inv_rev, comp_app, inv_inv]
 end
 
 @[simp] lemma is_right_invariant_conj : is_right_invariant μ.conj ↔ is_left_invariant μ :=
@@ -813,7 +922,7 @@ namespace haar
 
 variables [group G]
 
-/-- (K : V) -/
+/-- The index or Haar covering number(?) of `K` w.r.t. `V`, denoted `(K : V)` -/
 def index (K V : set G) : ℕ :=
 Inf $ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V }
 
@@ -836,6 +945,9 @@ set.pi set.univ (λ K, Icc 0 $ index K.1 K₀)
 /-- The closure of `{ prehaar K₀ U }` for `U` open neighbourhoods of `1`, contained in `V`. -/
 def cl_prehaar (K₀ : set G) (V : open_nhds_of (1 : G)) : set (compacts G → ℝ) :=
 closure $ prehaar K₀ '' { U : set G | U ⊆ V.1 ∧ is_open U ∧ (1 : G) ∈ U }
+
+lemma prehaar_empty (K₀ : positive_compacts G) {U : set G} : prehaar K₀.1 U ⊥ = 0 :=
+by { simp only [prehaar, compacts.bot_val, index_empty, nat.cast_zero, euclidean_domain.zero_div] }
 
 variables [topological_group G]
 
@@ -954,9 +1066,6 @@ end
 -- lemma prehaar_pos (K₀ : positive_compacts G) {U : set G} (hU : (interior U).nonempty)
 --   {K : set G} (h1K : compact K) (h2K : (interior K).nonempty) : 0 < prehaar K₀.1 U ⟨K, h1K⟩ :=
 -- by { apply div_pos; norm_cast, apply index_pos ⟨K, h1K, h2K⟩ hU, exact index_pos K₀ hU }
-
-lemma prehaar_empty (K₀ : positive_compacts G) {U : set G} : prehaar K₀.1 U ⊥ = 0 :=
-by {simp only [prehaar, compacts.bot_val, index_empty, nat.cast_zero, euclidean_domain.zero_div]}
 
 lemma prehaar_mono {K₀ : positive_compacts G} {U : set G} (hU : (interior U).nonempty)
   {K₁ K₂ : compacts G} (h : K₁.1 ⊆ K₂.1) : prehaar K₀.1 U K₁ ≤ prehaar K₀.1 U K₂ :=
@@ -1114,57 +1223,106 @@ variables [topological_space G] [t2_space G] [group G] [topological_group G]
 
 /-- the Haar outer measure on `G` -/
 def haar_outer_measure (K₀ : positive_compacts G) : outer_measure G :=
-measure.extend_from_compacts
+outer_measure.of_content
   (λ K, show nnreal, from ⟨chaar K₀ K, chaar_nonneg K₀ K⟩)
   (by { norm_cast, rw [←nnreal.coe_eq, nnreal.coe_zero, subtype.coe_mk, chaar_empty] })
   (λ K₁ K₂, by { norm_cast, simp only [←nnreal.coe_le_coe, nnreal.coe_add, subtype.coe_mk,
     chaar_sup_le] })
 
+lemma haar_outer_measure_exists_open {K₀ : positive_compacts G} {A : set G}
+  (hA : haar_outer_measure K₀ A < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ U : opens G, A ⊆ U ∧ haar_outer_measure K₀ U ≤ haar_outer_measure K₀ A + ε :=
+outer_measure.of_content_exists_open _ _ hA hε
+
+lemma haar_outer_measure_exists_compact {K₀ : positive_compacts G} {U : opens G}
+  (hU : haar_outer_measure K₀ U < ⊤) {ε : nnreal} (hε : ε > 0) :
+  ∃ K : compacts G, K.1 ⊆ U.1 ∧ haar_outer_measure K₀ U ≤ haar_outer_measure K₀ K.1 + ε :=
+outer_measure.of_content_exists_compact _ _ hU hε
+
+lemma haar_outer_measure_caratheodory {K₀ : positive_compacts G} (A : set G) :
+  (haar_outer_measure K₀).caratheodory.is_measurable A ↔ ∀ (U : opens G),
+  haar_outer_measure K₀ (U ∩ A) + haar_outer_measure K₀ (U \ A) ≤ haar_outer_measure K₀ U :=
+outer_measure.of_inner_content_caratheodory A
+
+lemma haar_outer_measure_mono {K₀ : positive_compacts G}
+  {{A B : set G}} (h2 : A ⊆ B) : haar_outer_measure K₀ A ≤ haar_outer_measure K₀ B :=
+outer_measure.of_inner_content_mono h2
+
+lemma haar_outer_measure_of_is_open {K₀ : positive_compacts G} (U : set G) (hU : is_open U) :
+  haar_outer_measure K₀ U =
+  outer_measure.inner_content (λ K, show nnreal, from ⟨chaar K₀ K, chaar_nonneg K₀ K⟩) ⟨U, hU⟩ :=
+outer_measure.of_content_opens ⟨U, hU⟩
+
+lemma haar_outer_measure_le_chaar {K₀ : positive_compacts G} {U : set G} (hU : is_open U)
+  (K : compacts G) (h : U ⊆ K.1) :
+  haar_outer_measure K₀ U ≤ show nnreal, from ⟨chaar K₀ K, chaar_nonneg K₀ K⟩ :=
+begin
+  rw haar_outer_measure_of_is_open U hU,
+  refine outer_measure.inner_content_le _ _ K h, intros K₁ K₂ hK,
+  norm_cast, rw [← nnreal.coe_le_coe], exact chaar_mono hK
+end
+
+lemma chaar_le_haar_outer_measure {K₀ : positive_compacts G} (K : compacts G) :
+   (show nnreal, from ⟨chaar K₀ K, chaar_nonneg K₀ K⟩ : ennreal) ≤ haar_outer_measure K₀ K.1 :=
+outer_measure.le_of_content_compacts K
+
 variables [S : measurable_space G] [borel_space G]
 include S
+
 lemma haar_caratheodory_measurable (K₀ : positive_compacts G) :
   S ≤ (haar_outer_measure K₀).caratheodory :=
 begin
-  rw @borel_space.measurable_eq G _ _, refine generate_from_le _,
-  intros U hU, rw outer_measure.is_caratheodory_le, intro A,
-  apply ennreal.le_of_forall_epsilon_le, intros ε hε hA,
-  rcases measure.extend_from_compacts_exists_open _ _ hA (nnreal.half_pos hε) with ⟨V, h1V, h2V⟩,
-  change haar_outer_measure K₀ V ≤ haar_outer_measure K₀ A + _ at h2V, -- cleanup
-  have : haar_outer_measure K₀ (V ⊓ ⟨U, hU⟩ : opens G) < ⊤, sorry,
-  rcases measure.extend_from_compacts_exists_compact _ _ this (nnreal.half_pos $ nnreal.half_pos hε) with ⟨K, h1K, h2K⟩,
-  change haar_outer_measure K₀ _ ≤ haar_outer_measure K₀ _ + _ at h2K, -- cleanup
-  have : haar_outer_measure K₀ (V ⊓ ⟨-K.1, closed_of_compact _ K.2⟩ : opens G) < ⊤, sorry,
-  rcases measure.extend_from_compacts_exists_compact _ _ this (nnreal.half_pos $ nnreal.half_pos hε) with ⟨L, h1L, h2L⟩,
-  change haar_outer_measure K₀ _ ≤ haar_outer_measure K₀ _ + _ at h2L, -- cleanup
-  refine le_trans (add_le_add' (outer_measure.mono _ $ inter_subset_inter_left _ h1V)
-    (outer_measure.mono _ $ diff_subset_diff h1V $ subset.trans h1K $ inter_subset_right _ _)) _,
-  convert le_trans (add_le_add' h2K h2L) _,
-  convert le_trans (le_refl (haar_outer_measure K₀ (K.1 ∪ L.1) + ε / 2)) _ using 1,
-  -- convert add_le_add_left' ((haar_outer_measure K₀).union K.1 L.1) using 1,
-  sorry,
-  sorry
-
+  rw [@borel_space.measurable_eq G _ _], refine generate_from_le _,
+  intros U hU, rw haar_outer_measure_caratheodory, intro U',
+  rw haar_outer_measure_of_is_open (↑U' ∩ U) (is_open_inter U'.2 hU),
+  simp only [outer_measure.inner_content, supr_subtype'],
+  haveI : nonempty {L : compacts G // L.1 ⊆ U' ∩ U} := ⟨⟨⊥, empty_subset _⟩⟩,
+  rw [ennreal.supr_add], refine supr_le _, rintro ⟨L, hL⟩, simp only [subset_inter_iff] at hL,
+  have : ↑U' \ U ⊆ U' \ L.1 := diff_subset_diff_right hL.2,
+  refine le_trans (add_le_add_left' $ haar_outer_measure_mono this) _,
+  rw haar_outer_measure_of_is_open (↑U' \ L.1) (is_open_diff U'.2 (closed_of_compact L.1 L.2)),
+  simp only [outer_measure.inner_content, supr_subtype'],
+  haveI : nonempty {M : compacts G // M.1 ⊆ ↑U' \ L.1} := ⟨⟨⊥, empty_subset _⟩⟩,
+  rw [ennreal.add_supr], refine supr_le _, rintro ⟨M, hM⟩, simp only [subset_diff] at hM,
+  have : (L ⊔ M).1 ⊆ U',
+  { simp only [union_subset_iff, compacts.sup_val, hM, hL, and_self] },
+  rw haar_outer_measure_of_is_open ↑U' U'.2,
+  refine le_trans (ge_of_eq _) (outer_measure.le_inner_content _ _ this), norm_cast,
+  simp only [←nnreal.coe_eq, nnreal.coe_add, subtype.coe_mk], exact chaar_sup_eq hM.2.symm
 end
-
 
 /-- the Haar measure on `G` -/
 def haar_measure (K₀ : positive_compacts G) : measure G :=
 (haar_outer_measure K₀).to_measure $ haar_caratheodory_measurable K₀
 
--- lemma is_left_invariant_haar_measure (K₀ : positive_compacts G) :
---   is_left_invariant (haar_measure K₀) :=
--- sorry
+lemma haar_measure_apply {K₀ : positive_compacts G} {s : set G} (hs : is_measurable s) :
+  haar_measure K₀ s = haar_outer_measure K₀ s :=
+to_measure_apply _ _ hs
 
--- lemma nonzero_haar_measure (K₀ : positive_compacts G) :
---   (haar_measure K₀).nonzero :=
--- sorry
-
--- lemma regular_haar_measure (K₀ : positive_compacts G) :
---   (haar_measure K₀).regular :=
--- sorry
-
-
+lemma regular_haar_measure [locally_compact_space G] {K₀ : positive_compacts G} :
+  (haar_measure K₀).regular :=
+begin
+  split,
+  { intros K hK, rcases exists_compact_superset hK with ⟨F, h1F, h2F⟩,
+    rw [haar_measure_apply hK.is_measurable],
+    refine lt_of_le_of_lt (haar_outer_measure_mono h2F) _,
+    refine lt_of_le_of_lt (haar_outer_measure_le_chaar is_open_interior ⟨F, h1F⟩ interior_subset)
+      ennreal.coe_lt_top },
+  { intros A hA, rw [haar_measure_apply hA],
+    refine le_infi _, intro U, refine le_infi _, intro hU,
+    refine infi_le_of_le U.1 _, refine infi_le_of_le U.2 _, refine infi_le_of_le hU _,
+    rw [haar_measure_apply U.2.is_measurable, haar_outer_measure_of_is_open U.1 U.2],
+    convert le_refl _ },
+  { intros U hU, rw [haar_measure_apply hU.is_measurable, haar_outer_measure_of_is_open U hU],
+    dsimp only [outer_measure.inner_content],
+    refine supr_le _, intro K, refine supr_le _, intro hK,
+    refine le_supr_of_le K.1 _, refine le_supr_of_le K.2 _, refine le_supr_of_le hK _,
+    rw [haar_measure_apply K.2.is_measurable], apply chaar_le_haar_outer_measure }
+end
 
 end measure_theory
 
 -- #lint
+
+
+-- typo: has_inhabited_instances -> has_inhabited_instance
