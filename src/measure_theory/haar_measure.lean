@@ -22,6 +22,92 @@ noncomputable theory
 
 open set measurable_space has_inv
 
+section
+open encodable
+
+variables {α : Type*} {β : Type*} {γ : Type*} {δ : Type*} [complete_lattice α] [add_comm_monoid β]
+  [topological_space β] [t2_space β] [encodable γ]
+
+lemma sum_eq_tsum_subtype {f : δ → β} {s : finset δ} :
+  s.sum f = (∑'x : {x // x ∈ s}, f x.1) :=
+by { rw [tsum_fintype], sorry }
+
+-- replace Union_aux in outer_measure
+theorem tsum_encodable (m : α → β) (m0 : m ⊥ = 0)
+  (s : γ → α) : (∑' b : γ, m (s b)) = ∑' i : ℕ, m (⨆ b ∈ decode2 γ i, s b) :=
+begin
+  have H : ∀ n, m (⨆ b ∈ decode2 γ n, s b) ≠ 0 → (decode2 γ n).is_some,
+  { intros n h,
+    cases decode2 γ n with b,
+    { refine (h $ by simp [m0]).elim },
+    { exact rfl } },
+  refine tsum_eq_tsum_of_ne_zero_bij (λ n h, option.get (H n h)) _ _ _,
+  { intros m n hm hn e,
+    have := mem_decode2.1 (option.get_mem (H n hn)),
+    rwa [← e, mem_decode2.1 (option.get_mem (H m hm))] at this },
+  { intros b h,
+    refine ⟨encode b, _, _⟩,
+    { convert h, simp [ext_iff, encodek2] },
+    { exact option.get_of_mem _ (encodek2 _) } },
+  { intros n h,
+    transitivity, swap,
+    rw [show decode2 γ n = _, from option.get_mem (H n h)],
+    congr, simp [ext_iff, -option.some_get] }
+end
+
+lemma supr_decode2 (f : γ → α) : (⨆ b, f b) = ⨆ (i : ℕ) (b ∈ decode2 γ i), f b :=
+by { rw [supr_comm], simp [mem_decode2] }
+
+theorem supr_R_tsum (m : α → β) (m0 : m ⊥ = 0)
+  (R : β → β → Prop)
+  (m_supr : ∀(s:ℕ → α), R (m (⨆ i, s i)) ((∑'i, m (s i))))
+  (s : γ → α) :
+  R (m (⨆ b : γ, s b)) (∑' b : γ, m (s b)) :=
+by { rw [supr_decode2, tsum_encodable _ m0 s], exact m_supr _ }
+
+def subtype_insert_equiv_option {α} [decidable_eq α] {t : finset α} {x : α} (h : x ∉ t) :
+  {i // i ∈ insert x t} ≃ option {i // i ∈ t} :=
+begin
+  refine
+  { to_fun := λ y, if h : y.1 = x then none else some ⟨y, (finset.mem_insert.mp y.2).resolve_left h⟩,
+  inv_fun := λ y, y.elim ⟨x, finset.mem_insert_self _ _⟩ $ λ z, ⟨z.1, finset.mem_insert_of_mem z.2⟩,
+  .. },
+  { intro y, by_cases h : y.1 = x, simp only [subtype.ext, h, option.elim, dif_pos],
+    simp only [h, option.elim, dif_neg, not_false_iff, subtype.coe_eta] },
+  { rintro (_|y), simp only [option.elim, dif_pos],
+    have : y.val ≠ x, { rintro ⟨⟩, exact h y.2 },
+    simp only [this, option.elim, subtype.eta, dif_neg, not_false_iff, subtype.coe_mk] },
+end
+
+def finset.nonempty_encodable {α} (t : finset α) : nonempty $ encodable {i // i ∈ t} :=
+begin
+  classical, induction t using finset.induction with x t hx ih,
+  { refine ⟨⟨λ _, 0, λ _, none, λ ⟨x,y⟩, y.rec _⟩⟩ },
+  { cases ih with ih, exact ⟨encodable.of_equiv _ (subtype_insert_equiv_option hx)⟩ }
+end
+
+theorem supr_R_sum {δ} (m : α → β) (m0 : m ⊥ = 0)
+  (R : β → β → Prop)
+  (m_supr : ∀(s:ℕ → α), R (m (⨆ i, s i)) ((∑'i, m (s i))))
+  (s : δ → α) (t : finset δ) :
+  R (m (⨆ d ∈ t, s d)) (t.sum $ λ d, m (s d)) :=
+by { cases finset.nonempty_encodable t, rw [supr_subtype'], convert supr_R_tsum m m0 R m_supr _,
+     rw [sum_eq_tsum_subtype], assumption }
+
+theorem sup_R_add (m : α → β) (m0 : m ⊥ = 0)
+  (R : β → β → Prop)
+  (m_supr : ∀(s:ℕ → α), R (m (⨆ i, s i)) ((∑'i, m (s i))))
+  (s₁ s₂ : α) :
+  R (m (s₁ ⊔ s₂)) (m s₁ + m s₂) :=
+begin
+  convert supr_R_tsum m m0 R m_supr (λ b, cond b s₁ s₂),
+  { simp only [supr_bool_eq, cond] },
+  { rw tsum_fintype, simp only [finset.sum_insert, not_false_iff, fintype.univ_bool,
+      finset.mem_singleton, cond, finset.sum_singleton] }
+end
+
+end
+
 namespace nat
 
 @[simp] lemma find_eq_zero {p : ℕ → Prop} [decidable_pred p] (h : ∃ (n : ℕ), p n) :
@@ -451,6 +537,20 @@ begin
   rw [mem_preimage] at this, convert this, simp only [mul_assoc, mul_inv_cancel_left]
 end
 
+lemma compact_covered_by_left_translates [group α] [topological_group α] {K V : set α}
+  (hK : compact K) (hV : (interior V).nonempty) :
+  ∃ t : finset α, K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V :=
+begin
+  cases hV with g₀ hg₀,
+  rcases compact.elim_finite_subcover hK (λ x : α, interior $ (λ h, x * h) ⁻¹' V) _ _ with ⟨t, ht⟩,
+  { refine ⟨t, subset.trans ht _⟩,
+    apply Union_subset_Union, intro g, apply Union_subset_Union, intro hg, apply interior_subset },
+  { intro g, apply is_open_interior },
+  { intros g hg, rw [mem_Union], use g₀ * g⁻¹,
+    apply preimage_interior_subset_interior_preimage, exact continuous_const.mul continuous_id,
+    rwa [mem_preimage, inv_mul_cancel_right] }
+end
+
 lemma exists_compact_subset [locally_compact_space α] {x : α} {U : set α}
   (hU : is_open U) (hx : x ∈ U) : ∃ (K : set α), compact K ∧ x ∈ interior K ∧ K ⊆ U :=
 begin
@@ -560,6 +660,8 @@ end
 
 namespace opens
 
+@[simp] lemma val_eq_coe (U : opens α) : U.1 = ↑U := rfl
+
 lemma supr_def {ι} (s : ι → opens α) : (⨆ i, s i) = ⟨⋃ i, s i, is_open_Union $ λ i, (s i).2⟩ :=
 by { ext1, simp only [supr, opens.Sup_s, sUnion_image, bUnion_range], refl }
 
@@ -639,6 +741,9 @@ mul_lt_top h1 (inv_lt_top.mpr h2)
 -- begin
 --   rw [add_supr], refine supr_le h
 -- end
+
+@[simp] lemma mul_pos {a b : ennreal} : 0 < a * b ↔ 0 < a ∧ 0 < b :=
+by simp only [zero_lt_iff_ne_zero, ne.def, ennreal.mul_eq_zero, not_or_distrib]
 
 end ennreal
 
@@ -813,7 +918,7 @@ begin
   rw [← ennreal.sub_le_iff_le_add], exact le_of_lt h2U
 end
 
-lemma inner_content_Union_nat [t2_space G] {μ : compacts G → ennreal}
+lemma inner_content_Sup_nat [t2_space G] {μ : compacts G → ennreal}
   (h1 : μ ⊥ = 0)
   (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂) (U : ℕ → opens G) :
   inner_content μ (⨆ (i : ℕ), U i) ≤ ∑' (i : ℕ), inner_content μ (U i) :=
@@ -831,6 +936,27 @@ begin
   refine le_trans (finset.sum_le_sum _) (ennreal.sum_le_tsum t),
   intros i hi, refine le_trans _ (le_supr _ (K' i)),
   refine le_trans (by refl') (le_supr _ (h1K' i hi))
+end
+
+def inner_content_pos [t2_space G] [group G] [topological_group G] {μ : compacts G → ennreal}
+  (h1 : μ ⊥ = 0)
+  (h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂)
+  (K₀ : compacts G) (hK₀ : 0 < μ K₀) (U : opens G) (hU : U.1.nonempty) :
+  0 < inner_content μ U :=
+begin
+  have : (interior U.1).nonempty, rwa [interior_eq_of_open U.2],
+  rcases compact_covered_by_left_translates K₀.2 this with ⟨s, hs⟩,
+  suffices : μ K₀ ≤ inner_content μ U * s.card,
+  { exact (ennreal.mul_pos.mp $ lt_of_lt_of_le hK₀ this).1 },
+  have : K₀.1 ⊆ (⨆ (g ∈ s), U.preimage $ continuous_mul_left g).1,
+  { simpa only [opens.supr_def, opens.coe_preimage, subtype.coe_mk, opens.val_eq_coe] },
+  refine le_trans (le_inner_content _ _ this) _,
+  refine le_trans
+    (supr_R_sum (inner_content μ) (inner_content_empty h1) (≤) (inner_content_Sup_nat h1 h2) _ _) _,
+
+  -- fapply lt_of_lt_of_le, exact 1 / s.card,
+  -- simp,
+  sorry
 end
 
 /-- Extending an "inner content" on opens to an outer measure on all sets.
@@ -939,7 +1065,7 @@ def of_content [t2_space G] (μ : compacts G → ennreal) (h1 : μ ⊥ = 0)
 of_inner_content
   (inner_content μ)
   (inner_content_empty h1)
-  (inner_content_Union_nat h1 h2)
+  (inner_content_Sup_nat h1 h2)
 
 variables [t2_space G] {μ : compacts G → ennreal} {h1 : μ ⊥ = 0}
   {h2 : ∀ (K₁ K₂ : compacts G), μ (K₁ ⊔ K₂) ≤ μ K₁ + μ K₂}
@@ -1094,8 +1220,8 @@ namespace haar
 
 variables [group G]
 
-/-- The index or Haar covering number(?) of `K` w.r.t. `V`, denoted `(K : V)`: it is the smallest
-  number of translates of `V` that is necessary to cover `K` -/
+/-- The index or Haar covering number(?) or ratio of `K` w.r.t. `V`, denoted `(K : V)`:
+  it is the smallest number of translates of `V` that is necessary to cover `K` -/
 def index (K V : set G) : ℕ :=
 Inf $ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V }
 
@@ -1133,16 +1259,7 @@ variables [topological_group G]
   there is a finite set `t` satisfying the desired properties. -/
 lemma index_defined {K V : set G} (hK : compact K) (hV : (interior V).nonempty) :
   ∃ n : ℕ, n ∈ finset.card '' {t : finset G | K ⊆ ⋃ g ∈ t, (λ h, g * h) ⁻¹' V } :=
-begin
-  cases hV with g₀ hg₀,
-  rcases compact.elim_finite_subcover hK (λ g : G, interior $ (λ h, g * h) ⁻¹' V) _ _ with ⟨t, ht⟩,
-  { refine ⟨t.card, t, subset.trans ht _, rfl⟩,
-    apply Union_subset_Union, intro g, apply Union_subset_Union, intro hg, apply interior_subset },
-  { intro g, apply is_open_interior },
-  { intros g hg, rw [mem_Union], use g₀ * g⁻¹,
-    apply preimage_interior_subset_interior_preimage, exact continuous_const.mul continuous_id,
-    rwa [mem_preimage, inv_mul_cancel_right] }
-end
+by { rcases compact_covered_by_left_translates hK hV with ⟨t, ht⟩, exact ⟨t.card, t, ht, rfl⟩ }
 
 lemma index_elim {K V : set G} (hK : compact K) (hV : (interior V).nonempty) :
   ∃ (t : finset G), K ⊆ (⋃ g ∈ t, (λ h, g * h) ⁻¹' V) ∧ finset.card t = index K V :=
@@ -1170,7 +1287,7 @@ end
 lemma index_pos (K : positive_compacts G) {V : set G} (hV : (interior V).nonempty) :
   0 < index K.1 V :=
 begin
-  unfold index, rw [Inf_nat_def, nat.find_pos, mem_image],
+  unfold index, rw [nat.Inf_def, nat.find_pos, mem_image],
   { rintro ⟨t, h1t, h2t⟩, rw [finset.card_eq_zero] at h2t, subst h2t,
     cases K.2.2 with g hg,
     show g ∈ (∅ : set G), convert h1t (interior_subset hg), symmetry, apply bUnion_empty },
@@ -1437,8 +1554,19 @@ end
 
 -- lemma chaar_pos (K₀ : positive_compacts G) (K : compacts G) (hK : (interior K.1).nonempty) :
 --   0 < chaar K₀ K :=
--- by { have := chaar_mem_haar_product K₀ K (mem_univ _), rw mem_Icc at this, exact this.1 }
-
+-- begin
+--   rcases index_elim K₀.2.1 hK with ⟨s, h1s, h2s⟩,
+--   suffices : 1 ≤ chaar K₀ K * s.card,
+--   { refine pos_of_mul_pos_right (lt_of_lt_of_le zero_lt_one this) (nat.cast_nonneg _) },
+--   rw [← chaar_self K₀],
+--   have : K₀.1 ⊆ (s.sup $ λ g, K.image $ continuous_mul_left g⁻¹).1,
+--   { convert h1s, rw [compacts.finset_sup_val, s.sup_eq_supr], dsimp only [set.Union],
+--     congr, ext1 g, congr, ext1 hg, convert compacts.equiv_to_fun_val (homeomorph.mul_left g⁻¹) K,
+--     rw inv_inv },
+--   refine le_trans (chaar_mono this) _,
+--   fapply lt_of_lt_of_le, exact 1 / s.card,
+--   simp,
+-- end
 
 end haar
 open haar
@@ -1515,11 +1643,11 @@ begin
   simp only [←nnreal.coe_eq, nnreal.coe_add, subtype.coe_mk], exact chaar_sup_eq hM.2.symm
 end
 
-lemma one_le_haar_outer_measure {K₀ : positive_compacts G}
-  {U : set G} (hU : is_open U) (h2U : K₀.1 ⊆ U) : 1 ≤ haar_outer_measure K₀ U :=
+lemma one_le_haar_outer_measure_self {K₀ : positive_compacts G} : 1 ≤ haar_outer_measure K₀ K₀.1 :=
 begin
-  rw [haar_outer_measure_of_is_open U hU],
-  refine le_trans _ (le_supr _ ⟨K₀.1, K₀.2.1⟩), refine le_trans _ (le_supr _ h2U),
+  refine le_infi _, intro U,
+  refine le_infi _, intro hU,
+  refine le_trans _ (le_supr _ ⟨K₀.1, K₀.2.1⟩), refine le_trans _ (le_supr _ hU),
   simp only [←nnreal.coe_le_coe, subtype.coe_mk, ennreal.one_le_coe_iff, nnreal.coe_one],
   rw [chaar_self],
 end
@@ -1556,7 +1684,7 @@ def haar_measure (K₀ : positive_compacts G) : measure G :=
 
 lemma haar_measure_apply {K₀ : positive_compacts G} {s : set G} (hs : is_measurable s) :
   haar_measure K₀ s = haar_outer_measure K₀ s / haar_outer_measure K₀ K₀.1 :=
-by { dsimp [haar_measure], simp only [hs, ennreal.div_def, mul_comm, to_measure_apply] }
+by { simp only [haar_measure, hs, ennreal.div_def, mul_comm, to_measure_apply, measure.smul_apply] }
 
 lemma is_left_invariant_haar_measure (K₀ : positive_compacts G) :
   is_left_invariant (haar_measure K₀) :=
