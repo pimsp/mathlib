@@ -24,6 +24,7 @@ properties about separable polynomials here.
 
 universes u v w
 open_locale classical
+local attribute [semireducible] polynomial.eval₂
 
 namespace polynomial
 

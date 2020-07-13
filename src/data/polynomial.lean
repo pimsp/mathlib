@@ -1315,6 +1315,8 @@ end hom_eval₂
 
 end semiring
 
+attribute [irreducible] eval₂
+
 section comm_semiring
 
 variables [comm_semiring R] {p q : polynomial R}
@@ -1886,12 +1888,16 @@ alg_hom.ext_iff.1 (aeval_alg_hom f x) p
 
 variables [comm_ring S] {f : R →+* S}
 
+section
+local attribute [semireducible] eval₂
+
 lemma is_root_of_eval₂_map_eq_zero
   (hf : function.injective f) {r : R} : eval₂ f (f r) p = 0 → p.is_root r :=
 show eval₂ (f.comp (ring_hom.id R)) (f r) p = 0 → eval₂ (ring_hom.id R) r p = 0, begin
   intro h,
   apply hf,
   rw [hom_eval₂, h, f.map_zero]
+end
 end
 
 lemma is_root_of_aeval_algebra_map_eq_zero [algebra R S] {p : polynomial R}
@@ -3232,6 +3238,9 @@ private lemma poly_binom_aux3 (f : polynomial R) (x y : R) : f.eval (x + y) =
   f.sum (λ e a, (a *(poly_binom_aux1 x y e a).val)*y^2) :=
 by rw poly_binom_aux2; simp [left_distrib, finsupp.sum_add, mul_assoc]
 
+section
+local attribute [semireducible] eval₂
+
 def binom_expansion (f : polynomial R) (x y : R) :
   {k : R // f.eval (x + y) = f.eval x + (f.derivative.eval x) * y + k * y^2} :=
 begin
@@ -3241,6 +3250,7 @@ begin
   { rw derivative_eval, symmetry,
     apply finsupp.sum_mul },
   { symmetry, apply finsupp.sum_mul }
+end
 end
 
 def pow_sub_pow_factor (x y : R) : Π (i : ℕ), {z : R // x^i - y^i = z * (x - y)}

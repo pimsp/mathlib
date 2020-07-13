@@ -21,6 +21,7 @@ universes u v w
 
 open_locale classical
 open polynomial set function
+local attribute [semireducible] polynomial.eval₂
 
 variables {α : Type u} {β : Type v}
 

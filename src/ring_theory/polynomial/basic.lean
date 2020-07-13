@@ -13,6 +13,7 @@ import ring_theory.noetherian
 
 noncomputable theory
 local attribute [instance, priority 100] classical.prop_decidable
+local attribute [semireducible] polynomial.eval₂
 
 universes u v w
 

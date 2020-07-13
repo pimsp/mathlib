@@ -12,6 +12,7 @@ universes u v w
 
 open_locale classical
 open polynomial submodule
+local attribute [semireducible] polynomial.eval₂
 
 section
 variables (R : Type u) {A : Type v} {B : Type w}

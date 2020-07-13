@@ -24,6 +24,8 @@ Finally, we use this to show unique factorization domains are integrally closed.
  * https://en.wikipedia.org/wiki/Rational_root_theorem
 -/
 
+local attribute [semireducible] polynomial.eval₂
+
 section scale_roots
 
 variables {A K R S : Type*} [integral_domain A] [field K] [comm_ring R] [comm_ring S]
