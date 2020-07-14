@@ -23,7 +23,55 @@ meta def loc.to_string : loc → string
 meta def pos.move_left (p : pos) (n : ℕ) : pos :=
 { line := p.line, column := p.column - n }
 
+namespace expr
+
+/-- Test alpha-equivalence of possibly incomplete proofs.
+All meta variables of the same type are considered equal. -/
+meta def alpha_eqv_with_mvar : expr → expr → bool
+| (var v) (var v') := v = v'
+| (sort u) (sort u') := u = u'
+| (const c us) (const c' us') :=
+  c = c' ∧ us = us'
+| (mvar unique pretty type) (mvar unique' pretty' type') :=
+  alpha_eqv_with_mvar type type'
+| (local_const unique pretty bi type) (local_const unique' pretty' bi' type') :=
+  (unique,pretty,bi) = (unique',pretty',bi') ∧
+  alpha_eqv_with_mvar type type'
+| (app f e) (app f' e') :=
+  alpha_eqv_with_mvar f f' ∧
+  alpha_eqv_with_mvar e e'
+| (lam var_name bi var_type body) (lam var_name' bi' var_type' body') :=
+  alpha_eqv_with_mvar var_type var_type' ∧
+  alpha_eqv_with_mvar body body'
+| (pi var_name bi var_type body) (pi var_name' bi' var_type' body') :=
+  alpha_eqv_with_mvar var_type var_type' ∧
+  alpha_eqv_with_mvar body body'
+| (elet var_name type assignment body) (elet var_name' type' assignment' body') :=
+  alpha_eqv_with_mvar type type' ∧
+  alpha_eqv_with_mvar assignment assignment' ∧
+  alpha_eqv_with_mvar body body'
+| (macro m es) (macro m' es') :=
+  expr.macro_def_name m = expr.macro_def_name m' ∧
+  (list.map₂ alpha_eqv_with_mvar es es').all id
+| _ _ := ff
+
+
+end expr
+
 namespace tactic
+
+/--
+  `erase_simp_args hs s` removes from `s` each name `n` such that `const n` is an element of `hs`
+-/
+meta def erase_simp_args (hs : list simp_arg_type) (s : name_set) : tactic name_set :=
+do
+  -- TODO: when Lean 3.4 support is dropped, use `decode_simp_arg_list_with_symm` on the next line:
+  (hs, _, _) ← decode_simp_arg_list hs,
+  pure $ hs.foldr (λ (h : pexpr) (s : name_set),
+    match h.get_app_fn h with
+    | (expr.const n _) := s.erase n
+    | _ := s
+    end) s
 
 open list
 
@@ -133,6 +181,51 @@ do some s ← get_proof_state_after (tac ff (user_args ++ simp_args)),
 /-- make a `simp_arg_type` that references the name given as an argument -/
 meta def name.to_simp_args (n : name) : tactic simp_arg_type :=
 do e ← resolve_name' n, pure $ simp_arg_type.expr e
+
+/-- `same_result proof tac` runs tactic `tac` and checks if the proof
+produced by `tac` is equivalent to `proof`. -/
+meta def same_result (pr : proof_state) (tac : tactic unit) : tactic bool :=
+do s ← get_proof_state_after tac,
+   pure $ some pr = s
+
+private meta def filter_simp_set_aux
+  (tac : bool → list simp_arg_type → tactic unit)
+  (args : list simp_arg_type) (pr : proof_state) :
+  list simp_arg_type → list simp_arg_type →
+  list simp_arg_type → tactic (list simp_arg_type × list simp_arg_type)
+| [] ys ds := pure (ys.reverse, ds.reverse)
+| (x :: xs) ys ds :=
+  do b ← same_result pr (tac tt (args ++ xs ++ ys)),
+     if b
+       then filter_simp_set_aux xs ys (x:: ds)
+       else filter_simp_set_aux xs (x :: ys) ds
+
+declare_trace squeeze.deleted
+
+/--
+`filter_simp_set v call_simp args args'` uses `call_simp` to call `simp` on
+lists of `simp` lemmas and assumptions built out of `args` and `args'`. `args`
+are the arguments provided by the user whereas `args'` are the lemmas taken from
+the `simp` attribute.
+-/
+meta def filter_simp_set
+  (tac : bool → list simp_arg_type → tactic unit)
+  (args args' : list simp_arg_type) : tactic (list simp_arg_type) :=
+do gs ← get_goals,
+   set_goals [v],
+   tgt ← target,
+   (_,pr) ← solve_aux tgt (tac ff (args ++ args')),
+   env ← get_env,
+   pr ← env.unfold_all_macros <$> instantiate_mvars pr,
+   (args', _)  ← filter_simp_set_aux tac args pr args' [] [],
+   (args₀, ds) ← filter_simp_set_aux tac args' pr args [] [],
+   when (is_trace_enabled_for `squeeze.deleted = tt ∧ ¬ ds.empty)
+     trace!"deleting provided arguments {ds}",
+   prod.fst <$> solve_aux tgt (pure (args₀ ++ args')) <* set_goals gs
+
+/-- make a `simp_arg_type` that references the name given as an argument -/
+meta def name.to_simp_args (n : name) : tactic simp_arg_type :=
+do e ← resolve_name n, pure $ simp_arg_type.expr e
 
 /-- tactic combinator to create a `simp`-like tactic that minimizes its
 argument list.

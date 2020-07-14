@@ -2091,11 +2091,55 @@ do n ← ident,
    mk_simp_attr n with_list,
    add_doc_string (name.append `simp_attr n) $ descr.get_or_else $ "simp set for " ++ to_string n
 
+/-- Use the name of the enclosing definition to solve the goal -/
+meta def synth_def_name : tactic unit :=
+do n ← decl_name,
+   tactic.exact `(n)
+
+/-- `on_error tac f` executes `tac` and calls `f` if `tac` fails  -/
+meta def on_error {α} (tac : tactic α)
+  (hdlr : option (unit → format) → option pos → tactic unit) : tactic α
+| s := match tac s with
+       | x@(result.success _ _) := x
+       | (result.exception msg pos s') := (hdlr msg pos >> result.exception msg pos) s'
+       end
+
+/-- Function to annotate function definitions and help localize errors -/
+meta def trace_scope' (tag : pformat) {α} (tac : tactic α) (n : name . synth_def_name) : tactic α :=
+do tag ← tag,
+   let tag := if ¬ tag.is_nil then format!"{n} ({tag})" else to_fmt n,
+   trace!"begin {tag}",
+   on_error tac (λ msg pos,
+     let msg := msg.get_or_else (λ _, to_fmt "⟨empty⟩") (),
+         pos := match pos with
+                | none := to_fmt ""
+                | (some val) := to_fmt val
+                end in
+     trace!"failed {tag} {pos}\n  {msg}" >> trace_state) <*
+   trace!"end {tag}"
+
+/-- Function to annotate function definitions and help localize errors -/
+meta def trace_scope {α} (tac : tactic α) (n : name . synth_def_name) : tactic α :=
+trace_scope' (pure $ to_fmt "") tac n
+
 add_tactic_doc
 { name                     := "mk_simp_attribute",
   category                 := doc_category.cmd,
   decl_names               := [`tactic.mk_simp_attribute_cmd],
   tags                     := ["simplification"] }
+
+/-- Use the name of the enclosing definition to solve the goal -/
+meta def synth_def_name : tactic unit :=
+do n ← decl_name,
+   tactic.exact `(n)
+
+/-- `on_error tac f` executes `tac` and calls `f` if `tac` fails  -/
+meta def on_error {α} (tac : tactic α)
+  (hdlr : option (unit → format) → option pos → tactic unit) : tactic α
+| s := match tac s with
+       | x@(result.success _ _) := x
+       | (result.exception msg pos s') := (hdlr msg pos >> result.exception msg pos) s'
+       end
 
 end tactic
 

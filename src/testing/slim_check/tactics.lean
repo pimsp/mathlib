@@ -26,7 +26,7 @@ match r with
 | (interaction_monad.result.success a s) := r
 end
 
-meta def applye (e : pexpr) : tactic unit := do
+private meta def applye (e : pexpr) : tactic unit := do
 () <$ (to_expr e >>= tactic.apply)
 
 meta def synth_def_name : tactic unit :=
@@ -83,17 +83,6 @@ match e with
       h ← to_expr ``(testable %%t') >>= tactic.assert `h,
       solve1 is_testable,
       applye ``(slim_check.test_one _ _ ℤ (some (%%var,"ℤ"))) ; apply_instance
-      -- let specialize := (λ (sp : expr) (nm : string), do
-      --     let t' := expr.instantiate_local n sp t,
-      --     h ← to_expr ``(testable %%t') >>= tactic.assert `h,
-      --     solve1 is_testable,
-      --     let type := reflect nm,
-      --     applye ``(slim_check.test_one _ _ %%sp (some (%%var,%%type)))
-      --       ; apply_instance),
-      -- apply ``(slim_check.combine_testable _ [_,_] _),
-      -- specialize `(ℤ) "ℤ",
-      -- specialize `(list ℤ) "list ℤ",
-      -- apply ``(nat.zero_lt_succ)
     else do
        mk_testable_inst,
        (  (applye ``(slim_check.test_forall_in_list _ _ %%var)  ; apply_instance)
@@ -105,6 +94,11 @@ end)
 
 open slim_check.test_result nat
 
+namespace interactive
+
+/-- in a goal of the shape `⊢ p` where `p` is testable, try to find
+counter-examples to falsify `p`. If one is found, an assignment to the
+local variables is printed. Otherwise, the goal is `admit`-ed.  -/
 meta def slim_check (bound : ℕ := 100) : tactic unit :=
 do unfreeze_local_instances,
    n ← revert_all,

@@ -503,13 +503,18 @@ meta def get_current_field : tactic name :=
 do [_,field,str] ← get_main_tag,
    expr.const_name <$> resolve_name (field.update_prefix str)
 
-meta def field (n : parse ident) (tac : itactic) : tactic unit :=
-do gs ← get_goals,
-   ts ← gs.mmap get_tag,
-   ([g],gs') ← pure $ (list.zip gs ts).partition (λ x, x.snd.nth 1 = some n),
-   set_goals [g.1],
-   tac, done,
-   set_goals $ gs'.map prod.fst
+meta def many1 {f} [monad f] [alternative f] {α} (x : f α) : f (list α) :=
+(::) <$> x <*> many x
+meta def field (ns : parse $ many1 ident) (tac : itactic) : tactic unit :=
+if ns.empty
+then solve1 tac
+else ns.mmap' $ λ n, do
+       gs ← get_goals,
+       ts ← gs.mmap get_tag,
+       ([g],gs') ← pure $ (list.zip gs ts).partition (λ x, x.snd.nth 1 = some n),
+       set_goals [g.1],
+       tac, done,
+       set_goals $ gs'.map prod.fst
 
 /--
 `have_field`, used after `refine_struct _` poses `field` as a local constant
@@ -1218,10 +1223,58 @@ do let (p, x) := p,
    intro x,
    intro h
 
+/-- `unfold_locals x y z`, with `x`, `y`, `z` being local definitions,
+unfolds them in the goal. -/
+meta def unfold_locals (ns : parse ident*) : tactic unit := do
+ns.for_each $ λ n, do
+  d ← get_local n,
+  v ← local_def_value d,
+  tgt ← target,
+  tgt' ← kabstract tgt d,
+  tactic.change $ tgt'.instantiate_var v
+
+/-- `fold_locals x y z`, with `x`, `y`, `z` being local definitions,
+unfolds them in the goal. -/
+meta def fold_locals (ns : parse ident*) : tactic unit := do
+ns.for_each $ λ n, do
+  d ← get_local n,
+  v ← local_def_value d,
+  tgt ← target,
+  tgt' ← kabstract tgt v,                -- <- those two lines are different from
+  tactic.change $ tgt'.instantiate_var d -- <- unfold_locals: v and d are swapped
+
 add_tactic_doc
 { name       := "generalize'",
   category   := doc_category.tactic,
   decl_names := [`tactic.interactive.generalize'],
+  tags       := ["context management"] }
+
+/-- `unfold_locals x y z`, with `x`, `y`, `z` being local definitions,
+unfolds them in the goal. -/
+meta def unfold_locals (ns : parse ident*) : tactic unit := do
+ns.for_each $ λ n, do
+  d ← get_local n,
+  v ← local_def_value d,
+  tgt ← target,
+  tgt' ← kabstract tgt d,
+  tactic.change $ tgt'.instantiate_var v
+
+/-- `fold_locals x y z`, with `x`, `y`, `z` being local definitions,
+folds occurrences of their values in the goal.
+
+For instance, in the state `x : ℕ := 2 ⊢ 2 = 3`, `fold_locals x` will change the goal to `x = 3`. -/
+meta def fold_locals (ns : parse ident*) : tactic unit := do
+ns.for_each $ λ n, do
+  d ← get_local n,
+  v ← local_def_value d,
+  tgt ← target,
+  tgt' ← kabstract tgt v,                -- <- those two lines are different from
+  tactic.change $ tgt'.instantiate_var d -- <- unfold_locals: v and d are swapped
+
+add_tactic_doc
+{ name       := "unfold_locals",
+  category   := doc_category.tactic,
+  decl_names := [``unfold_locals],
   tags       := ["context management"] }
 
 end interactive
