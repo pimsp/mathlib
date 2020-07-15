@@ -98,36 +98,36 @@ end
 end complex
 
 section dual_vector
-variables {E : Type*} [normed_group E] [normed_space ℝ E]
+variables {E : Type*} [normed_group E] [normed_space ℂ  E]
 
 open continuous_linear_equiv
 open_locale classical
 
-lemma coord_self' (x : E) (h : x ≠ 0) : (∥x∥ • (coord ℝ x h))
+lemma coord_self' (x : E) (h : x ≠ 0) : (∥x∥ • (coord ℂ x h))
   ⟨x, submodule.mem_span_singleton_self x⟩ = ∥x∥ :=
-calc (∥x∥ • (coord ℝ x h)) ⟨x, submodule.mem_span_singleton_self x⟩
-    = ∥x∥ • (linear_equiv.coord ℝ E x h) ⟨x, submodule.mem_span_singleton_self x⟩ : rfl
-... = ∥x∥ • 1 : by rw linear_equiv.coord_self ℝ E x h
+calc (∥x∥ • (coord ℂ x h)) ⟨x, submodule.mem_span_singleton_self x⟩
+    = ∥x∥ • (linear_equiv.coord ℂ E x h) ⟨x, submodule.mem_span_singleton_self x⟩ : rfl
+... = ∥x∥ • 1 : by rw linear_equiv.coord_self ℂ E x h
 ... = ∥x∥ : mul_one _
 
-lemma coord_norm' (x : E) (h : x ≠ 0) : ∥∥x∥ • coord ℝ x h∥ = 1 :=
+lemma coord_norm' (x : E) (h : x ≠ 0) : ∥∥x∥ • coord ℂ x h∥ = 1 :=
 by rw [norm_smul, norm_norm, coord_norm, mul_inv_cancel (mt norm_eq_zero.mp h)]
 
 /-- Corollary of Hahn-Banach.  Given a nonzero element `x` of a normed space, there exists an
     element of the dual space, of norm 1, whose value on `x` is `∥x∥`. -/
-theorem exists_dual_vector (x : E) (h : x ≠ 0) : ∃ g : E →L[ℝ] ℝ, ∥g∥ = 1 ∧ g x = ∥x∥ :=
+theorem exists_dual_vector (x : E) (h : x ≠ 0) : ∃ g : E →L[ℂ] ℂ, ∥g∥ = 1 ∧ g x = ∥x∥ :=
 begin
-  cases exists_extension_norm_eq (submodule.span ℝ {x}) (∥x∥ • coord ℝ x h) with g hg,
+  cases complex.exists_extension_norm_eq (submodule.span ℂ {x}) (∥x∥ • coord ℂ x h) with g hg,
   use g, split,
   { rw [hg.2, coord_norm'] },
-  { calc g x = g (⟨x, submodule.mem_span_singleton_self x⟩ : submodule.span ℝ {x}) : by simp
-  ... = (∥x∥ • coord ℝ x h) (⟨x, submodule.mem_span_singleton_self x⟩ : submodule.span ℝ {x}) : by rw ← hg.1
+  { calc g x = g (⟨x, submodule.mem_span_singleton_self x⟩ : submodule.span ℂ {x}) : by simp
+  ... = (∥x∥ • coord ℂ x h) (⟨x, submodule.mem_span_singleton_self x⟩ : submodule.span ℂ {x}) : by rw ← hg.1
   ... = ∥x∥ : by rw coord_self' }
 end
 
 /-- Variant of the above theorem, eliminating the hypothesis that `x` be nonzero, and choosing
     the dual element arbitrarily when `x = 0`. -/
-theorem exists_dual_vector' [nontrivial E] (x : E) : ∃ g : E →L[ℝ] ℝ,
+theorem exists_dual_vector' [nontrivial E] (x : E) : ∃ g : E →L[ℂ] ℂ,
   ∥g∥ = 1 ∧ g x = ∥x∥ :=
 begin
   by_cases hx : x = 0,
