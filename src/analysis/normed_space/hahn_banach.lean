@@ -137,6 +137,68 @@ begin
   { exact exists_dual_vector x hx }
 end
 
+
+noncomputable def J' (x:E) : (E →L[ℂ] ℂ) →ₗ[ℂ] ℂ := {
+  to_fun := λ f : E →L[ℂ] ℂ, f x,
+  map_add' :=  by simp only [forall_const, eq_self_iff_true, continuous_linear_map.add_apply],
+  map_smul' := by simp only [continuous_linear_map.smul_apply, forall_const, eq_self_iff_true],
+}
+
+noncomputable def J (x:E) : (E →L[ℂ] ℂ) →L[ℂ] ℂ :=
+(J' x).mk_continuous ∥x∥ (begin
+  intro f,
+  unfold J',
+  dsimp,
+  rw ←complex.norm_eq_abs,
+  rw mul_comm,
+  apply continuous_linear_map.le_op_norm,
+end)
+
+theorem preserves_norm (x:E) (hx : x ≠ 0) : ∥J x∥ = ∥x∥ :=
+begin
+  have eq : ∀ f : E →L[ℂ] ℂ, (J x) f = f x,
+  { intros,
+    dsimp [J, J'],
+    refl,
+  },
+  rw continuous_linear_map.norm_def (J x),
+  apply le_antisymm,
+  {
+    apply real.Inf_le,
+    {
+      use 0,
+      rintros y ⟨hy, _⟩,
+      exact hy,
+    },
+    refine ⟨norm_nonneg _, _⟩,
+    intro f,
+    rw [eq, mul_comm],
+    exact continuous_linear_map.le_op_norm f x,
+  },
+  {
+    rw real.le_Inf,
+    {
+      rintros z ⟨hz1, hz2⟩,
+      obtain ⟨g, hg1, hg2⟩ := exists_dual_vector x hx,
+      have := hz2 g,
+      rw [eq, hg1, mul_one, hg2, complex.norm_eq_abs, complex.abs_of_real, abs_of_nonneg (norm_nonneg _)] at this,
+      assumption,
+    },
+    {
+      use ∥x∥,
+      refine ⟨norm_nonneg x, _⟩,
+      intros f,
+      rw [eq, mul_comm],
+      exact continuous_linear_map.le_op_norm f x,
+    },
+    {
+      use 0,
+      rintros y ⟨hy1, hy2⟩,
+      exact hy1,
+    },
+  },
+end
+
 -- TODO: These corollaries are also true over ℂ.
 
 end dual_vector
