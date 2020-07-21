@@ -351,7 +351,7 @@ lemma monotone.supr_comp_eq [preorder β] {f : β → α} (hf : monotone f)
   (⨆ x, f (s x)) = ⨆ y, f y :=
 le_antisymm (supr_comp_le _ _) (supr_le_supr2 $ λ x, (hs x).imp $ λ i hi, hf hi)
 
-lemma function.surjective.supr_eq {α : Type*} [has_Sup α] {f : ι → ι₂}
+lemma function.surjective.supr_comp {α : Type*} [has_Sup α] {f : ι → ι₂}
   (hf : function.surjective f) (g : ι₂ → α) :
   (⨆ x, g (f x)) = ⨆ y, g y :=
 by simp only [supr, hf.range_comp]
@@ -362,7 +362,7 @@ by simp only [supr, hf.range_comp]
 begin
   have : f₁ ∘ pq.mpr = f₂ := funext f,
   rw [← this],
-  refine (function.surjective.supr_eq (λ h, ⟨pq.1 h, _⟩) f₁).symm,
+  refine (function.surjective.supr_comp (λ h, ⟨pq.1 h, _⟩) f₁).symm,
   refl
 end
 
@@ -439,10 +439,10 @@ lemma monotone.infi_comp_eq [preorder β] {f : β → α} (hf : monotone f)
   (⨅ x, f (s x)) = ⨅ y, f y :=
 le_antisymm (infi_le_infi2 $ λ x, (hs x).imp $ λ i hi, hf hi) (le_infi_comp _ _)
 
-lemma function.surjective.infi_eq {α : Type*} [has_Inf α] {f : ι → ι₂}
+lemma function.surjective.infi_comp {α : Type*} [has_Inf α] {f : ι → ι₂}
   (hf : function.surjective f) (g : ι₂ → α) :
   (⨅ x, g (f x)) = ⨅ y, g y :=
-@function.surjective.supr_eq _ _ (order_dual α) _ f hf g
+@function.surjective.supr_comp _ _ (order_dual α) _ f hf g
 
 @[congr] theorem infi_congr_Prop {α : Type*} [has_Inf α] {p q : Prop} {f₁ : p → α} {f₂ : q → α}
   (pq : p ↔ q) (f : ∀x, f₁ (pq.mpr x) = f₂ x) : infi f₁ = infi f₂ :=
