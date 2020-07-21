@@ -593,7 +593,6 @@ begin
     exact has_basis_infi_principal (directed_of_sup gmon) },
   contrapose,
   simp only [not_forall, gbasis.tendsto_left_iff, exists_const, not_exists, not_imp],
-  -- simp only [not_forall, not_imp, not_exists, subset_def, @tendsto_def _ _ f, gbasis.mem_iff],
   rintro ⟨B, hBl, hfBk⟩,
   choose x h using hfBk,
   use x, split,
