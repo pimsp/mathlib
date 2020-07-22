@@ -14,6 +14,8 @@ import algebra.group.basic
 
 open function
 
+set_option trace.simps.verbose true
+
 universes u v w z
 variables {α : Sort u} {β : Sort v} {γ : Sort w}
 
@@ -65,6 +67,9 @@ equiv.ext H
 @[trans] protected def trans (e₁ : α ≃ β) (e₂ : β ≃ γ) : α ≃ γ :=
 ⟨e₂.to_fun ∘ e₁.to_fun, e₁.inv_fun ∘ e₂.inv_fun,
   e₂.left_inv.comp e₁.left_inv, e₂.right_inv.comp e₁.right_inv⟩
+
+/-- See Note [custom simps projection] -/
+def simps.inv_fun (e : α ≃ β) : β → α := e.symm
 
 @[simp]
 lemma to_fun_as_coe (e : α ≃ β) (a : α) : e.to_fun a = e a := rfl
@@ -278,22 +283,18 @@ def of_iff {P Q : Prop} (h : P ↔ Q) : P ≃ Q :=
 
 /-- If `α₁` is equivalent to `α₂` and `β₁` is equivalent to `β₂`, then the type of maps `α₁ → β₁`
 is equivalent to the type of maps `α₂ → β₂`. -/
-@[congr] def arrow_congr {α₁ β₁ α₂ β₂ : Sort*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) :
+@[congr, simps to_fun {simp_rhs := tt}]
+def arrow_congr {α₁ β₁ α₂ β₂ : Sort*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) :
   (α₁ → β₁) ≃ (α₂ → β₂) :=
 { to_fun := λ f, e₂.to_fun ∘ f ∘ e₁.inv_fun,
   inv_fun := λ f, e₂.inv_fun ∘ f ∘ e₁.to_fun,
   left_inv := λ f, funext $ λ x, by simp,
   right_inv := λ f, funext $ λ x, by simp }
 
-@[simp] lemma arrow_congr_apply {α₁ β₁ α₂ β₂ : Sort*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂)
-  (f : α₁ → β₁) (x : α₂) :
-  arrow_congr e₁ e₂ f x = (e₂ $ f $ e₁.symm x) :=
-rfl
-
 lemma arrow_congr_comp {α₁ β₁ γ₁ α₂ β₂ γ₂ : Sort*}
   (ea : α₁ ≃ α₂) (eb : β₁ ≃ β₂) (ec : γ₁ ≃ γ₂) (f : α₁ → β₁) (g : β₁ → γ₁) :
   arrow_congr ea ec (g ∘ f) = (arrow_congr eb ec g) ∘ (arrow_congr ea eb f) :=
-by { ext, simp only [comp, arrow_congr_apply, eb.symm_apply_apply] }
+by { ext, simp only [comp, arrow_congr_to_fun, eb.symm_apply_apply] }
 
 @[simp] lemma arrow_congr_refl {α β : Sort*} :
   arrow_congr (equiv.refl α) (equiv.refl β) = equiv.refl (α → β) := rfl
@@ -313,14 +314,9 @@ A version of `equiv.arrow_congr` in `Type`, rather than `Sort`.
 The `equiv_rw` tactic is not able to use the default `Sort` level `equiv.arrow_congr`,
 because Lean's universe rules will not unify `?l_1` with `imax (1 ?m_1)`.
 -/
-@[congr]
+@[congr, simps to_fun {rhs_md := semireducible, simp_rhs := tt}]
 def arrow_congr' {α₁ β₁ α₂ β₂ : Type*} (hα : α₁ ≃ α₂) (hβ : β₁ ≃ β₂) : (α₁ → β₁) ≃ (α₂ → β₂) :=
 equiv.arrow_congr hα hβ
-
-@[simp] lemma arrow_congr'_apply {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂)
-  (f : α₁ → β₁) (x : α₂) :
-  arrow_congr' e₁ e₂ f x = (e₂ $ f $ e₁.symm x) :=
-rfl
 
 @[simp] lemma arrow_congr'_refl {α β : Type*} :
   arrow_congr' (equiv.refl α) (equiv.refl β) = equiv.refl (α → β) := rfl
@@ -335,11 +331,8 @@ rfl
 rfl
 
 /-- Conjugate a map `f : α → α` by an equivalence `α ≃ β`. -/
+@[simps to_fun {rhs_md := semireducible, simp_rhs := tt}]
 def conj (e : α ≃ β) : (α → α) ≃ (β → β) := arrow_congr e e
-
-@[simp] lemma conj_apply (e : α ≃ β) (f : α → α) (x : β) :
-  e.conj f x = (e $ f $ e.symm x) :=
-rfl
 
 @[simp] lemma conj_refl : conj (equiv.refl α) = equiv.refl (α → α) := rfl
 
@@ -386,48 +379,37 @@ calc (false → α) ≃ (empty → α) : arrow_congr false_equiv_empty (equiv.re
 end
 
 /-- Product of two equivalences. If `α₁ ≃ α₂` and `β₁ ≃ β₂`, then `α₁ × β₁ ≃ α₂ × β₂`. -/
-@[congr] def prod_congr {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) : α₁ × β₁ ≃ α₂ × β₂ :=
+@[congr, simps to_fun {fully_applied := ff}]
+def prod_congr {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) : α₁ × β₁ ≃ α₂ × β₂ :=
 ⟨prod.map e₁ e₂, prod.map e₁.symm e₂.symm, λ ⟨a, b⟩, by simp, λ ⟨a, b⟩, by simp⟩
-
-@[simp] theorem coe_prod_congr {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) :
-  ⇑(prod_congr e₁ e₂) = prod.map e₁ e₂ :=
-rfl
 
 @[simp] theorem prod_congr_symm {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) :
   (prod_congr e₁ e₂).symm = prod_congr e₁.symm e₂.symm :=
 rfl
 
 /-- Type product is commutative up to an equivalence: `α × β ≃ β × α`. -/
+@[simps to_fun {fully_applied := ff}]
 def prod_comm (α β : Type*) : α × β ≃ β × α :=
 ⟨prod.swap, prod.swap, λ⟨a, b⟩, rfl, λ⟨a, b⟩, rfl⟩
-
-@[simp] lemma coe_prod_comm (α β) : ⇑(prod_comm α β)= prod.swap := rfl
 
 @[simp] lemma prod_comm_symm (α β) : (prod_comm α β).symm = prod_comm β α := rfl
 
 /-- Type product is associative up to an equivalence. -/
+@[simps]
 def prod_assoc (α β γ : Sort*) : (α × β) × γ ≃ α × (β × γ) :=
 ⟨λ p, ⟨p.1.1, ⟨p.1.2, p.2⟩⟩, λp, ⟨⟨p.1, p.2.1⟩, p.2.2⟩, λ ⟨⟨a, b⟩, c⟩, rfl, λ ⟨a, ⟨b, c⟩⟩, rfl⟩
 
-@[simp] theorem prod_assoc_apply {α β γ : Sort*} (p : (α × β) × γ) :
-  prod_assoc α β γ p = ⟨p.1.1, ⟨p.1.2, p.2⟩⟩ := rfl
-
-@[simp] theorem prod_assoc_sym_apply {α β γ : Sort*} (p : α × (β × γ)) :
-  (prod_assoc α β γ).symm p = ⟨⟨p.1, p.2.1⟩, p.2.2⟩ := rfl
-
 section
 /-- `punit` is a right identity for type product up to an equivalence. -/
+@[simps to_fun]
 def prod_punit (α : Type*) : α × punit.{u+1} ≃ α :=
 ⟨λ p, p.1, λ a, (a, punit.star), λ ⟨_, punit.star⟩, rfl, λ a, rfl⟩
 
-@[simp] theorem prod_punit_apply {α : Sort*} (a : α × punit.{u+1}) : prod_punit α a = a.1 := rfl
-
 /-- `punit` is a left identity for type product up to an equivalence. -/
+@[simps to_fun {rhs_md := semireducible, simp_rhs := tt}]
 def punit_prod (α : Type*) : punit.{u+1} × α ≃ α :=
 calc punit × α ≃ α × punit : prod_comm _ _
            ... ≃ α         : prod_punit _
-
-@[simp] theorem punit_prod_apply {α : Type*} (a : punit.{u+1} × α) : punit_prod α a = a.2 := rfl
 
 /-- `empty` type is a right absorbing element for type product up to an equivalence. -/
 def prod_empty (α : Type*) : α × empty ≃ empty :=
@@ -456,15 +438,12 @@ def psum_equiv_sum (α β : Type*) : psum α β ≃ α ⊕ β :=
  λ s, by cases s; refl⟩
 
 /-- If `α ≃ α'` and `β ≃ β'`, then `α ⊕ β ≃ α' ⊕ β'`. -/
+@[simps to_fun]
 def sum_congr {α₁ β₁ α₂ β₂ : Type*} (ea : α₁ ≃ α₂) (eb : β₁ ≃ β₂) : α₁ ⊕ β₁ ≃ α₂ ⊕ β₂ :=
 ⟨sum.map ea eb, sum.map ea.symm eb.symm, λ x, by simp, λ x, by simp⟩
 
-@[simp] theorem sum_congr_apply {α₁ β₁ α₂ β₂ : Type*} (e₁ : α₁ ≃ α₂) (e₂ : β₁ ≃ β₂) (a : α₁ ⊕ β₁) :
-  sum_congr e₁ e₂ a = a.map e₁ e₂ :=
-rfl
-
 @[simp] lemma sum_congr_symm {α β γ δ : Type u} (e : α ≃ β) (f : γ ≃ δ) :
-  (equiv.sum_congr e f).symm = (equiv.sum_congr (e.symm) (f.symm)) :=
+  (equiv.sum_congr e f).symm = equiv.sum_congr (e.symm) (f.symm) :=
 rfl
 
 /-- `bool` is equivalent the sum of two `punit`s. -/
@@ -480,10 +459,10 @@ noncomputable def Prop_equiv_bool : Prop ≃ bool :=
  λ b, b, λ p, by simp, λ b, by simp⟩
 
 /-- Sum of types is commutative up to an equivalence. -/
+@[simps to_fun]
 def sum_comm (α β : Sort*) : α ⊕ β ≃ β ⊕ α :=
 ⟨sum.swap, sum.swap, sum.swap_swap, sum.swap_swap⟩
 
-@[simp] lemma sum_comm_apply (α β) (a) : sum_comm α β a = a.swap := rfl
 @[simp] lemma sum_comm_symm (α β) : (sum_comm α β).symm = sum_comm β α := rfl
 
 /-- Sum of types is associative up to an equivalence. -/
@@ -639,19 +618,12 @@ section fun_unique
 variables (α β) [unique α]
 
 /-- If `α` has a unique term, then the type of function `α → β` is equivalent to `β`. -/
+@[simps]
 def fun_unique : (α → β) ≃ β :=
 { to_fun := λ f, f (default α),
   inv_fun := λ b a, b,
   left_inv := λ f, funext $ λ a, congr_arg f $ subsingleton.elim _ _,
   right_inv := λ b, rfl }
-
-variables {α β}
-
-@[simp] lemma fun_unique_apply (f : α → β) :
-  fun_unique α β f = f (default α) := rfl
-
-@[simp] lemma fun_unique_symm_apply (b : β) (a : α) :
-  (fun_unique α β).symm b a = b := rfl
 
 end fun_unique
 
@@ -1366,6 +1338,7 @@ variables (P : α → Sort w) (e : α ≃ β)
 /--
 Transport dependent functions through an equivalence of the base space.
 -/
+@[simps {simp_rhs := tt}]
 def Pi_congr_left' : (Π a, P a) ≃ (Π b, P (e.symm b)) :=
 { to_fun := λ f x, f (e.symm x),
   inv_fun := λ f x, begin rw [← e.symm_apply_apply x], exact f (e x)  end,
@@ -1373,15 +1346,6 @@ def Pi_congr_left' : (Π a, P a) ≃ (Π b, P (e.symm b)) :=
     (by { dsimp, rw e.symm_apply_apply })),
   right_inv := λ f, funext $ λ x, eq_of_heq ((eq_rec_heq _ _).trans
     (by { rw e.apply_symm_apply })) }
-
-@[simp]
-lemma Pi_congr_left'_apply (f : Π a, P a) (b : β) : ((Pi_congr_left' P e) f) b = f (e.symm b) :=
-rfl
-
-@[simp]
-lemma Pi_congr_left'_symm_apply (g : Π b, P (e.symm b)) (a : α) :
-  ((Pi_congr_left' P e).symm g) a = (by { convert g (e a), simp }) :=
-rfl
 
 end
 
