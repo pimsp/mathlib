@@ -43,9 +43,7 @@ begin
   symmetry, refine le_antisymm nhds_le_uniformity _,
   by_contra H,
   obtain ⟨V, hV, h⟩ : ∃ V : set (α × α), (∀ x : α, V ∈ 𝓝 (x, x)) ∧ ne_bot (𝓤 α ⊓ 𝓟 Vᶜ),
-  { rw le_iff_forall_inf_principal_compl at H,
-    push_neg at H,
-    simpa only [mem_supr_sets] using H },
+  { simpa [le_iff_forall_disjoint_principal_compl, disjoint_iff] using H },
   let F := 𝓤 α ⊓ 𝓟 Vᶜ,
   haveI : ne_bot F := h,
   obtain ⟨⟨x, y⟩, hx⟩ : ∃ (p : α × α), cluster_pt p F :=
@@ -102,10 +100,10 @@ def uniform_space_of_compact_t2 {α : Type*} [topological_space α] [compact_spa
     set 𝓝Δ := ⨆ x : α, 𝓝 (x, x), -- The filter of neighborhoods of Δ
     set F := 𝓝Δ.lift' (λ (s : set (α × α)), s ○ s), -- Compositions of neighborhoods of Δ
     -- If this weren't true, then there would be V ∈ 𝓝Δ such that F ⊓ 𝓟 Vᶜ ≠ ⊥
-    rw le_iff_forall_inf_principal_compl,
+    rw le_iff_forall_disjoint_principal_compl,
     intros V V_in,
     by_contra H,
-    haveI : ne_bot (F ⊓ 𝓟 Vᶜ) := H,
+    haveI : ne_bot (F ⊓ 𝓟 Vᶜ) := mt disjoint_iff.2 H,
     -- Hence compactness would give us a cluster point (x, y) for F ⊓ 𝓟 Vᶜ
     obtain ⟨⟨x, y⟩, hxy⟩ : ∃ (p : α × α), cluster_pt p (F ⊓ 𝓟 Vᶜ) := cluster_point_of_compact _,
     -- In particular (x, y) is a cluster point of 𝓟 Vᶜ, hence is not in the interior of V,

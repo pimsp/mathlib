@@ -351,7 +351,7 @@ lemma monotone.supr_comp_eq [preorder β] {f : β → α} (hf : monotone f)
   (⨆ x, f (s x)) = ⨆ y, f y :=
 le_antisymm (supr_comp_le _ _) (supr_le_supr2 $ λ x, (hs x).imp $ λ i hi, hf hi)
 
-lemma function.surjective.supr_eq {α : Type*} [has_Sup α] {f : ι → ι₂}
+lemma function.surjective.supr_comp {α : Type*} [has_Sup α] {f : ι → ι₂}
   (hf : function.surjective f) (g : ι₂ → α) :
   (⨆ x, g (f x)) = ⨆ y, g y :=
 by simp only [supr, hf.range_comp]
@@ -362,7 +362,7 @@ by simp only [supr, hf.range_comp]
 begin
   have : f₁ ∘ pq.mpr = f₂ := funext f,
   rw [← this],
-  refine (function.surjective.supr_eq (λ h, ⟨pq.1 h, _⟩) f₁).symm,
+  refine (function.surjective.supr_comp (λ h, ⟨pq.1 h, _⟩) f₁).symm,
   refl
 end
 
@@ -439,10 +439,10 @@ lemma monotone.infi_comp_eq [preorder β] {f : β → α} (hf : monotone f)
   (⨅ x, f (s x)) = ⨅ y, f y :=
 le_antisymm (infi_le_infi2 $ λ x, (hs x).imp $ λ i hi, hf hi) (le_infi_comp _ _)
 
-lemma function.surjective.infi_eq {α : Type*} [has_Inf α] {f : ι → ι₂}
+lemma function.surjective.infi_comp {α : Type*} [has_Inf α] {f : ι → ι₂}
   (hf : function.surjective f) (g : ι₂ → α) :
   (⨅ x, g (f x)) = ⨅ y, g y :=
-@function.surjective.supr_eq _ _ (order_dual α) _ f hf g
+@function.surjective.supr_comp _ _ (order_dual α) _ f hf g
 
 @[congr] theorem infi_congr_Prop {α : Type*} [has_Inf α] {p q : Prop} {f₁ : p → α} {f₂ : q → α}
   (pq : p ↔ q) (f : ∀x, f₁ (pq.mpr x) = f₂ x) : infi f₁ = infi f₂ :=
@@ -765,11 +765,23 @@ le_antisymm
 
 /- supr and infi under Type -/
 
+theorem infi_of_empty' (h : ι → false) {s : ι → α} : infi s = ⊤ :=
+top_unique (le_infi $ assume i, (h i).elim)
+
+theorem supr_of_empty' (h : ι → false) {s : ι → α} : supr s = ⊥ :=
+bot_unique (supr_le $ assume i, (h i).elim)
+
+theorem infi_of_empty (h : ¬nonempty ι) {s : ι → α} : infi s = ⊤ :=
+infi_of_empty' (λ i, h ⟨i⟩)
+
+theorem supr_of_empty (h : ¬nonempty ι) {s : ι → α} : supr s = ⊥ :=
+supr_of_empty' (λ i, h ⟨i⟩)
+
 @[simp] theorem infi_empty {s : empty → α} : infi s = ⊤ :=
-le_antisymm le_top (le_infi $ assume i, empty.rec_on _ i)
+infi_of_empty nonempty_empty
 
 @[simp] theorem supr_empty {s : empty → α} : supr s = ⊥ :=
-le_antisymm (supr_le $ assume i, empty.rec_on _ i) bot_le
+supr_of_empty nonempty_empty
 
 @[simp] theorem infi_unit {f : unit → α} : (⨅ x, f x) = f () :=
 le_antisymm (infi_le _ _) (le_infi $ assume ⟨⟩, le_refl _)
@@ -793,7 +805,7 @@ le_antisymm
   (le_infi $ assume ⟨i, h⟩, infi_le_of_le i $ infi_le _ _)
 
 lemma infi_subtype' {p : ι → Prop} {f : ∀ i, p i → α} :
-  (⨅ i (h : p i), f i h) = (⨅ x : subtype p, f x.val x.property) :=
+  (⨅ i (h : p i), f i h) = (⨅ x : subtype p, f x x.property) :=
 (@infi_subtype _ _ _ p (λ x, f x.val x.property)).symm
 
 lemma infi_subtype'' {ι} (s : set ι) (f : ι → α) :

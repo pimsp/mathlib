@@ -343,6 +343,8 @@ have set.prod u v ⊆ n, from assume ⟨x',y'⟩ ⟨hx',hy'⟩,
   (h i).2.2.2.2 ⟨hi, (bInter_subset_of_mem is0 : v ⊆ (uvs i).2) hy'⟩,
 ⟨u, v, ‹is_open u›, ‹is_open v›, s0_cover, ‹t ⊆ v›, ‹set.prod u v ⊆ n›⟩
 
+/-- If `s` and `t` are compact sets and `n` is an open neighborhood of `s × t`, then there exist
+open neighborhoods `u ⊇ s` and `v ⊇ t` such that `u × v ⊆ n`. -/
 lemma generalized_tube_lemma {s : set α} (hs : is_compact s) {t : set β} (ht : is_compact t)
   {n : set (α × β)} (hn : is_open n) (hp : set.prod s t ⊆ n) :
   ∃ (u : set α) (v : set β), is_open u ∧ is_open v ∧ s ⊆ u ∧ t ⊆ v ∧ set.prod u v ⊆ n :=
@@ -362,7 +364,8 @@ lemma compact_univ [h : compact_space α] : is_compact (univ : set α) := h.comp
 
 lemma cluster_point_of_compact [compact_space α]
   (f : filter α) [ne_bot f] : ∃ x, cluster_pt x f :=
-by simpa using compact_univ (by simpa using f.univ_sets)
+by simpa only [exists_prop, true_and, mem_univ]
+  using compact_univ (le_principal_iff.2 f.univ_sets)
 
 theorem compact_space_of_finite_subfamily_closed {α : Type u} [topological_space α]
   (h : Π {ι : Type u} (Z : ι → (set α)), (∀ i, is_closed (Z i)) →

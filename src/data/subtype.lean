@@ -24,7 +24,7 @@ lemma prop (x : subtype p) : p x := x.2
 /-- An alternative version of `subtype.forall`. This one is useful if Lean cannot figure out `q`
   when using `subtype.forall` from right to left. -/
 protected theorem forall' {q : ∀x, p x → Prop} :
-  (∀ x h, q x h) ↔ (∀ x : {a // p a}, q x.1 x.2) :=
+  (∀ x h, q x h) ↔ (∀ x : {a // p a}, q x x.2) :=
 (@subtype.forall _ _ (λ x, q x.1 x.2)).symm
 
 @[simp] protected theorem «exists» {q : {a // p a} → Prop} :
