@@ -14,7 +14,7 @@ import algebra.group.basic
 
 open function
 
-set_option trace.simps.verbose true
+-- set_option trace.simps.verbose true
 
 universes u v w z
 variables {α : Sort u} {β : Sort v} {γ : Sort w}
