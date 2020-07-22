@@ -383,7 +383,7 @@ begin
   { rintros ⟨x, v⟩ hx,
     simp only [triv_change, local_triv', local_equiv.symm, true_and, prod_mk_mem_set_prod_eq,
       local_equiv.trans_source, mem_inter_eq, and_true, mem_univ, prod.mk.inj_iff, mem_preimage,
-      proj, local_equiv.coe_mk, eq_self_iff_true, local_equiv.coe_trans] at hx ⊢,
+      proj, local_equiv.coe_mk, eq_self_iff_true, local_equiv.trans_to_fun] at hx ⊢,
     simp [Z.coord_change_comp, hx] }
 end
 

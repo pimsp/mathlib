@@ -623,7 +623,7 @@ lemma ext_chart_at_target_mem_nhds_within :
   (ext_chart_at I x).target ∈ nhds_within ((ext_chart_at I x) x) (range I) :=
 begin
   rw [ext_chart_at, local_equiv.trans_target],
-  simp only [function.comp_app, local_equiv.coe_trans, model_with_corners.target],
+  simp only [function.comp_app, local_equiv.trans_to_fun, model_with_corners.target],
   refine inter_mem_nhds_within _
     (mem_nhds_sets (I.continuous_symm _ (chart_at H x).open_target) _),
   simp only with mfld_simps
