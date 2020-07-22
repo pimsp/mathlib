@@ -302,7 +302,7 @@ restr_eq_of_source_subset (subset_univ _)
 
 /-- The identity local equiv -/
 @[simps to_fun source target {rhs_md := semireducible, attrs := [`simp, `mfld_simps],
-  fully_applied := ff}]
+  fully_applied := ff, simp_rhs := tt}]
 protected def refl (α : Type*) : local_equiv α α := (equiv.refl α).to_local_equiv
 
 @[simp, mfld_simps] lemma refl_symm : (local_equiv.refl α).symm = local_equiv.refl α := rfl
@@ -318,8 +318,8 @@ by simp
 /-- The identity local equiv on a set `s` -/
 @[simps to_fun source target {fully_applied := ff}]
 def of_set (s : set α) : local_equiv α α :=
-{ to_fun      := λ x, x,
-  inv_fun     := λ x, x,
+{ to_fun      := id,
+  inv_fun     := id,
   source      := s,
   target      := s,
   map_source' := λx hx, hx,
