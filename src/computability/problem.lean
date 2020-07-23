@@ -61,4 +61,15 @@ lemma is_odd_red_to_is_even: is_odd ≤₀ is_even := begin
   ring,
 end
 
+@[refl]
+lemma many_one_reducible_refl {α} [primcodable α] (P : problem α) :
+  P ≤₀ P := ⟨id, computable.id, by simp⟩
+
+@[trans]
+theorem many_one_reducible.trans {α β γ} [primcodable α] [primcodable β] [primcodable γ] {P : problem α} {Q : problem β} {R : problem γ} : P ≤₀ Q → Q ≤₀ R → P ≤₀ R
+| ⟨f, c₁, h₁⟩ ⟨g, c₂, h₂⟩ := ⟨g ∘ f, c₂.comp c₁,
+  λ a, ⟨λ h, by rwa [←h₂, ←h₁], λ h, by rwa [h₁, h₂]⟩⟩
+
+
+
 end problem
