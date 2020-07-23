@@ -40,10 +40,10 @@ lemma even_add_odd_is_odd (a:ℤ) (b:ℤ): b%2=1 → ( a%2=0 ↔ (a+b)%2=1 ) := 
     ... = 1 : by ring,
   },
   intro ah,
-  calc a % 2 = (a+2)%2 : by simp
-  ... = (a+1+1)%2 : by ring
-  ... = ((a+1)%2 + 1%2)%2 : by simp
-  ... = (1+1%2)%2 : by rw ah
+  calc a % 2 = (a+2*b)%2 : by simp
+  ... = (a+b+b)%2 : by ring
+  ... = ((a+b)%2 + b%2)%2 : by simp
+  ... = (1+1)%2 : by rw [ah,bh]
   ... = 0 : by ring,
 end
 
