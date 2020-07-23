@@ -1,6 +1,7 @@
 import tactic
 import computability.primrec
 import computability.reduce
+import data.zmod.basic
 open function
 
 namespace problem
@@ -31,43 +32,33 @@ def many_one_reducible {α β} [primcodable α] [primcodable β] (P : problem α
 
 infix ` ≤₀ `:1000 := many_one_reducible
 
-lemma even_add_odd_is_odd (a:ℤ) (b:ℤ): b%2=1 → ( a%2=0 ↔ (a+b)%2=1 ) := begin
-  intro bh,
-  split, {
-    intro ah,
-    calc (a+b) % 2 = (a%2+b%2)%2 : by simp
-    ... = (0+1)%2 : by rw [ah,bh]
-    ... = 1 : by ring,
-  },
-  intro ah,
-  calc a % 2 = (a+2*b)%2 : by simp
-  ... = (a+b+b)%2 : by ring
-  ... = ((a+b)%2 + b%2)%2 : by simp
-  ... = (1+1)%2 : by rw [ah,bh]
-  ... = 0 : by ring,
-end
-
 lemma is_even_red_to_is_odd: is_even ≤₀ is_odd := begin
   use nat.succ,
   split,
   exact computable.succ,
   intro a,
-  have h1 :(1:ℤ)%2=1 := by ring,
-  have h2 :↑(2:ℕ) = (2:ℤ) := by simp,
-  change a%2 = 0 ↔ (a+1) % 2 = 1,
+  change a ≡ 0 [MOD 2] ↔ a+1≡1 [MOD 2],
+  repeat {rw ← zmod.nat_coe_eq_nat_coe_iff},
+  simp,
+end
+
+lemma is_odd_red_to_is_even: is_odd ≤₀ is_even := begin
+  use nat.succ,
+  split,
+  exact computable.succ,
+  intro a,
+  change a ≡ 1 [MOD 2] ↔ a+1≡0 [MOD 2],
+  repeat {rw ← zmod.nat_coe_eq_nat_coe_iff},
   split, {
-    intro ah,
-    apply int.coe_nat_inj,
-    apply (even_add_odd_is_odd a 1 h1).mp,
-    rw ← h2,
-    rw ← int.coe_nat_mod,
-    rw ah,
+    intro h,
+    simp [h],
     ring,
-  }, {
-    intro ah,
-    apply int.coe_nat_inj,
-    dsimp,
-  }
+  },
+  intro h,
+  apply add_right_cancel,
+  simp at h,
+  rw h,
+  ring,
 end
 
 end problem
