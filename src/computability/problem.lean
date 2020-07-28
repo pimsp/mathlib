@@ -113,33 +113,6 @@ def to_postfix : (propositional_formula ℕ) → list ℕ
 | (disj a b) :=  (to_postfix a) ++ (to_postfix b) ++ [2]
 | (not a) := (to_postfix a) ++ [0]
 
-def from_postfix' : (list ℕ × list (propositional_formula ℕ)) → list ℕ × list (propositional_formula ℕ)
-| ([],l) := ([],l)
---| (0::l,list.nil) := ([],[])
-| (0::l,f::m) := from_postfix' (l,(not f)::m) 
---| (1::l,list.nil) := ([],[])
---| (1::l,f::list.nil) := ([],[])
-| (1::l,f::(g::m)) := from_postfix' (l,(conj f g)::m)
---| (2::l,list.nil) := ([],[])
---| (2::l,f::list.nil) := ([],[])
-| (2::l,f::(g::m)) := from_postfix' (l,(disj f g)::m)
-| (b::l,m) := from_postfix' (l,(atom (b-3))::m)
-using_well_founded {
-  rel_tac := λ _ _,
-  `[exact ⟨_, measure_wf (λ f, f.1.length)⟩]
-}
-
-def from_postfix : list ℕ → option ( propositional_formula ℕ ) := λ l, list.head' (from_postfix' (l,[])).2
-/-begin
-  intros l,
-  let φ := from_postfix' (l, []),
-  cases φ.2 with head1 tail,
-  use option.none,
-  cases tail with head2,
-  use head1,
-  use option.none,
-end-/
-
 def from_postfix2' : list ℕ → list ( propositional_formula ℕ ) → list ℕ × list ( propositional_formula ℕ ) 
 | [] [f] := ([],[f])
 | [] m := ([],[])
@@ -214,9 +187,19 @@ instance propositional_formula_nat : encodable (propositional_formula ℕ) := {
 end encodable
 
 namespace primcodable 
+open propositional_formula
 instance propositional_formula_nat : primcodable (propositional_formula ℕ) := { 
   prim := begin
-    sorry,
+    let enc := λ a, nat.succ (encodable.encode_list ( to_postfix a )),
+    let dec := λ n, option.domain_add_option from_postfix2 ( encodable.decode_list n ),
+    change nat.primrec (λ n, 
+      option.cases_on (dec n) 
+        0 
+        enc ),
+    --have none_decidable : decidable ( dec n = none ),
+    change nat.primrec (λ n, 
+      if h : (dec n).is_none then 0 else enc ( dec n ) ),
+
   end,
   ..encodable.propositional_formula_nat,
 }
