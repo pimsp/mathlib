@@ -1,0 +1,16 @@
+* Definieren oplosbaar door TM2 machine
+* Laten zien dat dat equivalent is met oplosbaar TM0 machine
+* Algemeen certificatenmachine maken (voor TM2)
+* Laten zien dat SAT oplosbaar is (met de certificatenmachine + eindig veel certificaten)
+* Runtime van een TM0 machine definieren (misschien niet, in verband met de opmerking bij regel 7)
+* Runtime van een TM2 machine definieren
+* Laten zien dat de runtimes polynomiaal begrensd zijn in elkaar? (Misschien te moeilijk)
+* P definieren (voor TM2 machines)
+* NP/NPC definieren
+
+
+NP:
+certificatenmachine
+c : \alpha \to list \Gamma of list \N of \N
+(yesinstance a) \to (c a is een certificaat voor a)
+
