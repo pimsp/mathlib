@@ -3,28 +3,48 @@ import computability.primrec
 import computability.reduce
 import computability.tm_to_partrec
 import data.zmod.basic
+import data.equiv.list
+import data.list.basic
 open function
+
+-- Some option construction
+
+namespace option
+def domain_add_option { α β : Type } : ( α → option β ) → ( option α → option β ) := begin
+  intros f a,
+  cases a, 
+  use none,
+  use f a,
+end
+@[simp]
+lemma domain_add_option_of_some { α β : Type } ( f : α → option β ) ( a : α ) : ( domain_add_option f ) ( some a ) =  f a :=
+begin
+  trivial,
+end
+end option
+
+-- Problem namespace
 
 namespace problem
 
 structure problem (α : Type*) [primcodable α] :=
 (yesinstance : α → Prop)
 
-instance : primcodable ℕ := {
-  encode := id,
-  decode := some,
-  encodek := by simp,
-  prim := nat.primrec.succ
+namespace primcodable
+instance nat : primcodable ℕ := {
+  prim := nat.primrec.succ,
+  ..encodable.nat,
 }
+end primcodable
 
-def is_even [h : primcodable ℕ]: problem ℕ := {
+def is_even : problem ℕ := {
   yesinstance := λ n, n%2 = 0,
-  ..h,
+  ..primcodable.nat,
 }
 
-def is_odd [h : primcodable ℕ]: problem ℕ := {
+def is_odd : problem ℕ := {
   yesinstance := λ n, n%2 = 1,
-  ..h,
+  ..primcodable.nat,
 }
 
 def many_one_reducible {α β} [primcodable α] [primcodable β] (P : problem α) (Q : problem β) :=
@@ -78,12 +98,152 @@ theorem many_one_reducible.trans {α β γ} [primcodable α] [primcodable β] [p
 -- (Λ : Type*) -- Type of function labels
 -- (σ : Type*) -- Type of variable settings
 -- (tm : Λ → (turing.TM2.stmt (λ _:K, Γ) Λ (option Γ)))
-
+@[derive inhabited]
 inductive propositional_formula (α : Type*)
 | atom (a:α) : propositional_formula
 | conj (a b: propositional_formula) : propositional_formula
 | disj (a b: propositional_formula) : propositional_formula
 | not (a:propositional_formula) : propositional_formula
+
+-- Postfix territory
+namespace propositional_formula
+def to_postfix : (propositional_formula ℕ) → list ℕ 
+| (atom a) := [a+3]
+| (conj a b) :=  (to_postfix a) ++ (to_postfix b) ++ [1]
+| (disj a b) :=  (to_postfix a) ++ (to_postfix b) ++ [2]
+| (not a) := (to_postfix a) ++ [0]
+
+def from_postfix' : (list ℕ × list (propositional_formula ℕ)) → list ℕ × list (propositional_formula ℕ)
+| ([],l) := ([],l)
+--| (0::l,list.nil) := ([],[])
+| (0::l,f::m) := from_postfix' (l,(not f)::m) 
+--| (1::l,list.nil) := ([],[])
+--| (1::l,f::list.nil) := ([],[])
+| (1::l,f::(g::m)) := from_postfix' (l,(conj f g)::m)
+--| (2::l,list.nil) := ([],[])
+--| (2::l,f::list.nil) := ([],[])
+| (2::l,f::(g::m)) := from_postfix' (l,(disj f g)::m)
+| (b::l,m) := from_postfix' (l,(atom (b-3))::m)
+using_well_founded {
+  rel_tac := λ _ _,
+  `[exact ⟨_, measure_wf (λ f, f.1.length)⟩]
+}
+
+def from_postfix : list ℕ → option ( propositional_formula ℕ ) := λ l, list.head' (from_postfix' (l,[])).2
+/-begin
+  intros l,
+  let φ := from_postfix' (l, []),
+  cases φ.2 with head1 tail,
+  use option.none,
+  cases tail with head2,
+  use head1,
+  use option.none,
+end-/
+
+def from_postfix2' : list ℕ → list ( propositional_formula ℕ ) → list ℕ × list ( propositional_formula ℕ ) 
+| [] [f] := ([],[f])
+| [] m := ([],[])
+| (0::l) (f::m) := from_postfix2' l ((not f)::m) 
+| (0::l) nil := ([],[])
+| (1::l) (f::(g::m)) := from_postfix2' l ((conj g f)::m) 
+| (1::l) m := ([],[])
+| (2::l) (f::(g::m)) := from_postfix2' l ((disj g f)::m)
+| (2::l) m := ([],[])
+| ((b+3)::l) m := from_postfix2' l ((atom b)::m)
+
+def from_postfix2 : list ℕ → option ( propositional_formula ℕ ) := λ l, list.head' ( from_postfix2' l [] ).2
+
+lemma from_to_postfix_id_aux (φ:propositional_formula ℕ) : ∀ l₁:list ℕ, ∀ l₂:list (propositional_formula ℕ), from_postfix2' ( φ.to_postfix ++ l₁ ) l₂ = from_postfix2' l₁ ( φ :: l₂ ) :=
+begin
+  induction φ, {
+    intros l₁ l₂,
+    trivial,
+  }, {
+    intros l₁ l₂,
+    specialize φ_ih_a (φ_b.to_postfix ++ (1 :: l₁) ) l₂,
+    specialize φ_ih_b (1 :: l₁) (φ_a :: l₂),
+    calc from_postfix2' ((φ_a.conj φ_b).to_postfix ++ l₁) l₂ 
+        = from_postfix2' ( φ_a.to_postfix ++ φ_b.to_postfix ++ [1] ++ l₁ ) l₂: by trivial
+    ... = from_postfix2' ( φ_a.to_postfix ++ ( φ_b.to_postfix ++ ( 1 :: l₁ ) ) ) l₂: by simp[list.append_assoc]
+    ... = from_postfix2' ( φ_b.to_postfix ++ (1 :: l₁) ) (φ_a :: l₂) : φ_ih_a
+    ... = from_postfix2' ( 1 :: l₁ ) ( φ_b :: φ_a :: l₂) : φ_ih_b
+    ... = from_postfix2' l₁ (φ_a.conj φ_b :: l₂) : by trivial,
+  }, {
+    intros l₁ l₂,
+    specialize φ_ih_a (φ_b.to_postfix ++ (2 :: l₁) ) l₂,
+    specialize φ_ih_b (2 :: l₁) (φ_a :: l₂),
+    calc from_postfix2' ((φ_a.disj φ_b).to_postfix ++ l₁) l₂ 
+        = from_postfix2' ( φ_a.to_postfix ++ φ_b.to_postfix ++ [2] ++ l₁ ) l₂: by trivial
+    ... = from_postfix2' ( φ_a.to_postfix ++ ( φ_b.to_postfix ++ ( 2 :: l₁ ) ) ) l₂: by simp[list.append_assoc]
+    ... = from_postfix2' ( φ_b.to_postfix ++ (2 :: l₁) ) (φ_a :: l₂) : φ_ih_a
+    ... = from_postfix2' ( 2 :: l₁ ) ( φ_b :: φ_a :: l₂) : φ_ih_b
+    ... = from_postfix2' l₁ (φ_a.disj φ_b :: l₂) : by trivial,
+  }, {
+    intros l₁ l₂,
+    specialize φ_ih (0 :: l₁) l₂,
+    calc from_postfix2' ( (φ_a.not).to_postfix ++ l₁) l₂ 
+        = from_postfix2' ( φ_a.to_postfix ++ [0] ++ l₁ ) l₂: by trivial
+    ... = from_postfix2' ( φ_a.to_postfix ++ ( 0 :: l₁ ) ) l₂: by simp[list.append_assoc]
+    ... = from_postfix2' ( 0 :: l₁ ) ( φ_a :: l₂) : φ_ih
+    ... = from_postfix2' l₁ (φ_a.not :: l₂) : by trivial,
+  },
+end
+
+end propositional_formula
+
+namespace encodable
+open propositional_formula
+instance propositional_formula_nat : encodable (propositional_formula ℕ) := { 
+  encode := encodable.list.encode ∘ to_postfix,
+  decode := ( option.domain_add_option from_postfix2 ) ∘ encodable.list.decode,
+  encodek := begin
+    intro φ,
+    repeat {rw comp_app},
+    let el := encodable.list.encodek,
+    specialize el φ.to_postfix,
+    rw el,
+    simp,
+    clear el,
+    change list.head' ( from_postfix2' (to_postfix φ) [] ).2 = some φ,
+    let from_to_postfix_id := from_to_postfix_id_aux φ [] [],
+    simp at from_to_postfix_id,
+    rw from_to_postfix_id,
+    trivial,
+  end,
+}
+end encodable
+
+namespace primcodable 
+instance propositional_formula_nat : primcodable (propositional_formula ℕ) := { 
+  prim := begin
+    sorry,
+  end,
+  ..encodable.propositional_formula_nat,
+}
+
+end primcodable
+
+
+
+instance prop_prim : primcodable (propositional_formula ℕ) := { 
+  encode := encodable.list.encode ∘ propositional_formula.to_postfix,
+  decode := ( option.domain_add_option propositional_formula.from_postfix ) ∘ encodable.list.decode,
+  encodek := begin
+    intro φ,
+    repeat {rw comp_app},
+    let el := encodable.list.encodek,
+    specialize el φ.to_postfix,
+    rw el,
+    simp,
+    clear el,
+    induction φ, {
+      calc propositional_formula.from_postfix (propositional_formula.atom φ).to_postfix = some atom φ
+    },
+  end,
+  prim := _ }
+
+-- End postfix territory
+
 
 -- note that singleton a = a is also a rec_list (but not a list)
 inductive rec_list (α : Type*)
@@ -121,5 +281,8 @@ instance prop_prim : primcodable (propositional_formula ℕ) := sorry
 
 def sat : problem (propositional_formula ℕ) :=
 { yesinstance := λ p, is_satisfiable p }
+
+
+
 
 end problem
