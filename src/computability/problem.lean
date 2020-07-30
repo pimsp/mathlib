@@ -280,6 +280,15 @@ turing.TM0.eval tm (tr_nat (encodable.encode a))
 end
 end tm2
 
+structure turing_machine_2 :=
+ {K : Type*}
+ [K_decidable_eq : decidable_eq K]
+ (k₀ : K)
+ (Γ : K → Type)
+ (input_alphabet : Γ k₀ = Γ')
+ (Λ : Type*)
+ (σ : Type*)
+ (M : tm2.machine Γ Λ σ)
 
 
 end problem
