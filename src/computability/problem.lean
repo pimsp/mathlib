@@ -242,11 +242,6 @@ parameters (Λ : Type*) [inhabited Λ]
 
 def machine := turing.TM0.machine Γ' Λ
 
-example (α : Type*) (S : setoid α) (a : α) : quotient S :=
-begin
-  refine ⟦a⟧,
-end
-
 def list_to_list_blank {Γ : Type} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
 @quotient.mk (list Γ) (turing.blank_rel.setoid Γ) L
 
@@ -269,15 +264,18 @@ namespace tm2
 section
 parameters {K : Type*} [decidable_eq K] -- Index type of stacks
 parameters (k₀ : K) -- input stack
-parameters (Γ : K → Type*) -- Type of stack elements
+parameters (Γ : K → Type) -- Type of stack elements
 parameters (input_alphabet : Γ k₀ = Γ')
--- parameters (Λ : Type*) -- Type of function labels
--- parameters (σ : Type*) -- Type of variable settings
+parameters (Λ : Type*) -- Type of function labels
+parameters (σ : Type*) -- Type of variable settings
 
--- def stmt' := turing.TM2.stmt Γ Λ σ
+def stmt' := turing.TM2.stmt Γ Λ σ
+def cfg' := turing.TM2.cfg Γ Λ σ
 
--- def machine := Λ → stmt'
+def machine := Λ → stmt'
 
+def run_tm0 {α : Type*} [encodable α] (tm : machine) (a : α) : roption cfg' :=
+turing.TM0.eval tm (tr_nat (encodable.encode a))
 
 end
 end tm2
