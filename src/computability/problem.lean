@@ -223,7 +223,7 @@ def sat : problem (propositional_formula ℕ) :=
 { yesinstance := λ p, is_satisfiable p }
 
 @[derive [decidable_eq, inhabited]]
-inductive Γ' | blank | bit0 | bit1
+inductive Γ' | blank | bit0 | bit1 | bra | ket | comma
 
 def tr_pos_num : pos_num → list Γ'
 | pos_num.one := [Γ'.bit1]
@@ -267,16 +267,30 @@ parameters (k₀ : K) -- input stack
 parameters (Γ : K → Type) -- Type of stack elements
 parameters (input_alphabet : Γ k₀ = Γ')
 parameters (Λ : Type*) -- Type of function labels
+parameters (Λ₀ : Λ) -- main function
 parameters (σ : Type*) -- Type of variable settings
+parameters (σ₀ : σ) -- begin state/variable
 
 def stmt' := turing.TM2.stmt Γ Λ σ
 def cfg' := turing.TM2.cfg Γ Λ σ
 
 def machine := Λ → stmt'
 
-def run_tm0 {α : Type*} [encodable α] (tm : machine) (a : α) : roption cfg' :=
-turing.TM0.eval tm (tr_nat (encodable.encode a))
+#check input_alphabet
 
+include input_alphabet
+def init_nat (n : ℕ) : cfg':=
+{ l := option.some Λ₀,
+  var := σ₀,
+  stk := λ k, dite (k = k₀) (λ h,begin rw h,rw input_alphabet, exact tr_nat n end) (λ _,[])}
+
+def init_α {α : Type*} [encodable α] (a : α) : cfg' :=
+init_nat (encodable.encode a)
+
+def run_tm2 {α : Type*} [encodable α] (tm : machine) (a : α) : roption cfg' :=
+turing.eval (turing.TM2.step tm) (init_α a)
+
+def solved_by_turing_machine_2 {α : Type*} [encodable α] (P : problem α) (tm : machine) : Prop := (λ (a : α), run_tm2 tm a = roption.some (init_nat 1)) = P.yesinstance ∧ ∀ (a : α), run_tm2 tm a ≠ roption.none
 end
 end tm2
 
@@ -287,8 +301,14 @@ structure turing_machine_2 :=
  (Γ : K → Type)
  (input_alphabet : Γ k₀ = Γ')
  (Λ : Type*)
+ (Λ₀ : Λ)
  (σ : Type*)
+ (σ₀ : σ)
  (M : tm2.machine Γ Λ σ)
 
+#check @tm2.solved_by_turing_machine_2
+
+def solvable_by_turing_machine_2 {α : Type*} [encodable α] (P : problem α) : Prop :=
+∃ (tm : turing_machine_2), @tm2.solved_by_turing_machine_2 tm.K tm.K_decidable_eq tm.k₀ tm.Γ tm.input_alphabet tm.Λ tm.Λ₀ tm.σ tm.σ₀ _ _ P tm.M
 
 end problem
