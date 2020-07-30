@@ -96,13 +96,6 @@ lemma many_one_reducible_refl {α} [encodable α] (P : problem α) :
 -- | ⟨f, c₁, h₁⟩ ⟨g, c₂, h₂⟩ := ⟨g ∘ f, c₂.comp c₁,
 --   λ a, ⟨λ h, by rwa [←h₂, ←h₁], λ h, by rwa [h₁, h₂]⟩⟩
 
--- structure algorithm {α : Type*} [primcodable α] (P : problem α) :=
--- (K : Type*)
--- (decstack : decidable_eq K) -- Index type of stacks
--- (Γ : K → Type*) -- Type of stack elements
--- (Λ : Type*) -- Type of function labels
--- (σ : Type*) -- Type of variable settings
--- (tm : Λ → (turing.TM2.stmt (λ _:K, Γ) Λ (option Γ)))
 @[derive inhabited]
 inductive propositional_formula (α : Type*)
 | atom (a:α) : propositional_formula
@@ -192,14 +185,6 @@ instance propositional_formula_nat : encodable (propositional_formula ℕ) := {
 end encodable
 -- End postfix territory
 
-
--- note that singleton a = a is also a rec_list (but not a list)
--- inductive rec_list (α : Type*)
--- | nil : rec_list
--- | singleton (a:α) : rec_list
--- | singlelist (a : rec_list) : rec_list
--- | cons (hd : rec_list) (tl : rec_list) : rec_list -- think of this as [hd] concatenated with tl
-
 namespace propositional_formula
 def eval {α : Type*} (f : α → Prop) : (propositional_formula α) → Prop
   | (atom a) := f a
@@ -208,6 +193,13 @@ def eval {α : Type*} (f : α → Prop) : (propositional_formula α) → Prop
   | (not a) := ¬(eval a)
 
 -- propositional_formula.eval a = run tm_van_Daan (encode a)
+
+-- note that singleton a = a is also a rec_list (but not a list)
+-- inductive rec_list (α : Type*)
+-- | nil : rec_list
+-- | singleton (a:α) : rec_list
+-- | singlelist (a : rec_list) : rec_list
+-- | cons (hd : rec_list) (tl : rec_list) : rec_list -- think of this as [hd] concatenated with tl
 
 -- notation h :: t  := rec_list.cons h t
 -- notation `[` l:(foldr `, ` (h t, rec_list.cons h t) rec_list.nil `]`) := l
@@ -244,12 +236,11 @@ def tr_num : num → list Γ'
 
 def tr_nat (n : ℕ) : list Γ' := tr_num n
 
-structure tm0 :=
-(Λ : Type*)
-(Λ_inhabited : inhabited Λ)
-(machine : turing.TM0.machine Γ' Λ) --Λ → Γ → turing.TM0.stmt Γ)
+namespace tm0
+section
+parameters (Λ : Type*) [inhabited Λ]
 
-#check @turing.TM0.eval
+def machine := turing.TM0.machine Γ' Λ
 
 example (α : Type*) (S : setoid α) (a : α) : quotient S :=
 begin
@@ -259,14 +250,37 @@ end
 def list_to_list_blank {Γ : Type} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
 @quotient.mk (list Γ) (turing.blank_rel.setoid Γ) L
 
-def run {α : Type*} [encodable α] (tm : tm0) (a : α) : roption (turing.list_blank Γ') :=
-@turing.TM0.eval Γ' _ tm.Λ tm.Λ_inhabited tm.machine (tr_nat (encodable.encode a))
+def run_tm0 {α : Type*} [encodable α] (tm : machine) (a : α) : roption (turing.list_blank Γ') :=
+turing.TM0.eval tm (tr_nat (encodable.encode a))
 
-def solved_by_turing_machine {α : Type*} [encodable α] (P : problem α) (tm : tm0) : Prop := (λ (a : α), run tm a = roption.some (list_to_list_blank [Γ'.bit1])) = P.yesinstance ∧ ∀ (a : α), run tm a ≠ roption.none
+def solved_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) (tm : machine) : Prop := (λ (a : α), run_tm0 tm a = roption.some (list_to_list_blank [Γ'.bit1])) = P.yesinstance ∧ ∀ (a : α), run_tm0 tm a ≠ roption.none
+end
+end tm0
 
-def solvable {α : Type*} [encodable α] (P : problem α) : Prop :=
-∃ (tm : tm0), solved_by_turing_machine P tm
+structure turing_machine_0 :=
+ (Λ : Type*)
+ [Λ_inhabited : inhabited Λ]
+ (M : tm0.machine Λ)
 
+def solvable_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) : Prop :=
+∃ (tm : turing_machine_0), @tm0.solved_by_turing_machine_0 tm.Λ tm.Λ_inhabited _ _ P tm.M
+
+namespace tm2
+section
+parameters {K : Type*} [decidable_eq K] -- Index type of stacks
+parameters (k₀ : K) -- input stack
+parameters (Γ : K → Type*) -- Type of stack elements
+parameters (input_alphabet : Γ k₀ = Γ')
+-- parameters (Λ : Type*) -- Type of function labels
+-- parameters (σ : Type*) -- Type of variable settings
+
+-- def stmt' := turing.TM2.stmt Γ Λ σ
+
+-- def machine := Λ → stmt'
+
+
+end
+end tm2
 
 
 
