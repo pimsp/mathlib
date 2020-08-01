@@ -7,13 +7,26 @@ structure encoding (α : Type*) :=
 (encode : α → list Γ)
 (decode : list Γ → option α)
 (encodek : decode ∘ encode = option.some)
+
+structure fin_encoding (α : Type*) extends encoding α :=
+(Γ_fin : fintype Γ)
 --(encode_injective : function.injective encode)
 
 @[derive [inhabited,decidable_eq]]
 inductive Γ₀₁ | bit0 | bit1
 
+#check list.mem
+
+def Γ₀₁_fin : fintype Γ₀₁ :=
+{ elems := {Γ₀₁.bit0, Γ₀₁.bit1},
+  complete := λ x, begin cases x, left,trivial,right,left,trivial, end }
+
 @[derive [decidable_eq]]
 inductive Γ' | blank | bit0 | bit1 | bra | ket | comma
+
+def Γ'_fin : fintype Γ' :=
+{ elems := {Γ'.blank, Γ'.bit0, Γ'.bit1, Γ'.bra, Γ'.ket, Γ'.comma},
+  complete := λ x, begin cases x, left,trivial,right,left,trivial,right,right,left,trivial,right,right,right,left,trivial,right,right,right,right,left,trivial,right,right,right,right,right,left,trivial end }
 
 def inclusion_Γ₀₁_Γ' : Γ₀₁ → Γ'
 | Γ₀₁.bit0 := Γ'.bit0
@@ -24,7 +37,7 @@ def section_Γ'_Γ₀₁ : Γ' → Γ₀₁
 | Γ'.bit1 := Γ₀₁.bit1
 | _ := arbitrary Γ₀₁
 
-def left_inverse_section_inclusion : function.left_inverse section_Γ'_Γ₀₁ inclusion_Γ₀₁_Γ' := begin intros x, cases x; trivial, end
+lemma left_inverse_section_inclusion : function.left_inverse section_Γ'_Γ₀₁ inclusion_Γ₀₁_Γ' := begin intros x, cases x; trivial, end
 
 def inclusion_Γ₀₁_Γ'_injective : function.injective inclusion_Γ₀₁_Γ' :=
 begin tidy, cases a₁; cases a₂; simp; finish end
@@ -129,6 +142,11 @@ def encoding_nat_Γ₀₁ : encoding ℕ :=
   encodek := begin funext, simp, exact encodek_nat x end
   }
 
+def fin_encoding_nat_Γ₀₁ : fin_encoding ℕ :=
+{ Γ_fin := Γ₀₁_fin,
+..encoding_nat_Γ₀₁
+  }
+
 example {α β γ : Type*} (f : α → β) (g : β → γ) (hf : function.injective f) (hg : function.injective g) : function.injective (g ∘ f) :=
 begin
   refine function.injective.comp hg hf,
@@ -155,3 +173,8 @@ def encoding_nat_Γ' : encoding ℕ :=
     simp [h],
     exact encodek_nat x,
   end}
+
+def fin_encoding_nat_Γ' : fin_encoding ℕ :=
+{ Γ_fin := Γ'_fin,
+..encoding_nat_Γ'
+  }
