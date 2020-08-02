@@ -1,5 +1,6 @@
 import tactic
 import data.list
+import data.list.basic
 import .problem
 
 namespace tm2program
@@ -82,6 +83,59 @@ def pop' {k:K} (h:k≠k₂) : (σ → option Γ' → σ) → stmt' → stmt' := 
    rw ne_call_stack k₂ Λ h,
    exact f, 
 end e -/
+
+-- rec_list
+
+namespace rec_list
+@[derive inhabited]
+inductive rec_list 
+| empty   : rec_list
+| string  : list(bool) → rec_list → rec_list
+| sublist : rec_list → rec_list → rec_list
+
+def string_to_bits : list bool → list Γ' := list.map (λ b:bool, ite b Γ'.bit1 Γ'.bit0 )
+def bits_to_string : list Γ' → list bool := list.map (λ c:Γ', c = Γ'.bit1 )
+@[simp] 
+lemma string_to_bits_to_string (l:list bool): bits_to_string ( string_to_bits l) = l :=
+begin
+   let f : bool → Γ' := (λ b:bool, ite b Γ'.bit1 Γ'.bit0 ),
+   let g : Γ' → bool := (λ c:Γ', c = Γ'.bit1 ),
+   have h : g ∘ f = id, ext, induction x, repeat {refl},
+   change list.map g ( list.map f l ) = l,
+   simp [h],
+end
+
+def symbol_sign : Γ' → ℤ | Γ'.bra := 1 | Γ'.ket := -1 | _ := 0 
+def stack_depth : list Γ' → list ℤ := list.scanl (λ d g, d + symbol_sign g) 0
+def index_of_comma₁ : list Γ' → ℕ := λ l, (l.zip (stack_depth l)).index_of (Γ'.comma,0)
+def pop_ends : list Γ' → list Γ'  := λ l, l.tail.reverse.tail.reverse  
+
+def split_stack₁ : list Γ' → list Γ' × list Γ' := λ l, l.split_at $ index_of_comma₁ l 
+def split_stackₐ' : list Γ' → list(list(Γ'×ℤ)) := λ l, (l.zip (stack_depth l)).split_on (Γ'.comma,0)
+def split_stackₐ : list Γ' → list(list(Γ')) := λ l₁, list.map ( λ l₂, list.map ( λ x:Γ'×ℤ, x.1 ) l₂ ) $ split_stackₐ' l₁
+
+lemma split_stack_dec₁ (l:list Γ') (h:l≠[]): (split_stack₁ l).1.length < l.length :=
+begin
+   sorry,
+end
+lemma split_stack_dec₂ (l:list Γ') (h:l≠[]): (split_stack₁ l).2.length < l.length :=
+begin
+   sorry,
+end
+
+def rec_list_to_stack : rec_list → list Γ'
+| (rec_list.empty) := []
+| (rec_list.sublist l' l) := ([Γ'.bra]++rec_list_to_stack l'++[Γ'.ket])++(Γ'.comma::rec_list_to_stack l)
+| (rec_list.string b l) := (string_to_bits b)++(Γ'.comma::rec_list_to_stack l)
+
+def stack_to_rec_list' : list Γ' → rec_list
+| [] := rec_list.empty
+| (Γ'.bra::l) := rec_list.sublist (stack_to_rec_list' $ pop_ends (split_stack₁ l).1) $ stack_to_rec_list' (split_stack₁ l).2
+| l := rec_list.string (bits_to_string (split_stack₁ l).1) $ stack_to_rec_list' (split_stack₁ l).2
+
+
+
+-- edge case elimination
 
 def no_call_stack: K → K := λ k, if k=k₂ then k₀ else k
 include h₀₂
