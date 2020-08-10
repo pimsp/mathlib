@@ -2,15 +2,17 @@ import data.fintype.basic
 import data.num.lemmas
 import tactic
 
-structure encoding (α : Type*) :=
+structure encoding (α : Type) :=
 (Γ : Type)
 (encode : α → list Γ)
 (decode : list Γ → option α)
 (encodek : decode ∘ encode = option.some)
 
-structure fin_encoding (α : Type*) extends encoding α :=
+structure fin_encoding (α : Type) extends encoding α :=
 (Γ_fin : fintype Γ)
 --(encode_injective : function.injective encode)
+
+#check fin_encoding
 
 @[derive [inhabited,decidable_eq]]
 inductive Γ₀₁ | bit0 | bit1
@@ -100,9 +102,6 @@ def encodek_pos_num : ∀ n, (decode_pos_num(encode_pos_num n) ) = n := begin
     ... = m.bit0 : by rw hm,
 end
 
-
-#check decode_num
-
 def encodek_num : ∀ n, (decode_num(encode_num n) ) = n := begin
   intros n,
   cases n,
@@ -147,21 +146,6 @@ def fin_encoding_nat_Γ₀₁ : fin_encoding ℕ :=
 ..encoding_nat_Γ₀₁
   }
 
-example {α β γ : Type*} (f : α → β) (g : β → γ) (hf : function.injective f) (hg : function.injective g) : function.injective (g ∘ f) :=
-begin
-  refine function.injective.comp hg hf,
-end
-
-example {α β : Type*} (f : α → β) : (list α → list β ) :=
-begin
-  refine list.map f,
-end
-
-example {α β : Type*} (f : α → β) (hf : function.injective f): function.injective (list.map f) :=
-begin
-  refine list.map_injective_iff.mpr hf,
-end
-
 def encoding_nat_Γ' : encoding ℕ :=
 { Γ := Γ',
   encode := (list.map inclusion_Γ₀₁_Γ') ∘ encode_nat,
@@ -178,3 +162,24 @@ def fin_encoding_nat_Γ' : fin_encoding ℕ :=
 { Γ_fin := Γ'_fin,
 ..encoding_nat_Γ'
   }
+
+def encode_bool : bool → list Γ₀₁
+| ff := [Γ₀₁.bit0]
+| tt := [Γ₀₁.bit1]
+
+def decode_bool : list Γ₀₁ → bool
+| [Γ₀₁.bit0] := ff
+| [Γ₀₁.bit1] := tt
+| _ := arbitrary bool
+
+def encodek_bool : ∀ b, (decode_bool(encode_bool b) ) = b := λ b,
+begin
+  cases b; refl
+end
+
+def encoding_bool_Γ₀₁ : fin_encoding bool :=
+{ Γ := Γ₀₁,
+  encode := encode_bool,
+  decode := option.some ∘ decode_bool,
+  encodek := begin funext, simp [encodek_bool x], end,
+  Γ_fin := Γ₀₁_fin }

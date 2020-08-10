@@ -1,24 +1,27 @@
 import tactic
 import computability.primrec
+import computability.partrec
 import computability.reduce
 import computability.tm_to_partrec
 import computability.turing_machine
 import data.zmod.basic
 import data.equiv.list
 import data.list.basic
+import .encode_alphabet
+import .list_computable
 open function
 
 -- Some option construction
 
 namespace option
-def domain_add_option { α β : Type } : ( α → option β ) → ( option α → option β ) := begin
+def domain_add_option { α β : Type* } : ( α → option β ) → ( option α → option β ) := begin
   intros f a,
   cases a,
   use none,
   use f a,
 end
 @[simp]
-lemma domain_add_option_of_some { α β : Type } ( f : α → option β ) ( a : α ) : ( domain_add_option f ) ( some a ) =  f a :=
+lemma domain_add_option_of_some { α β : Type* } ( f : α → option β ) ( a : α ) : ( domain_add_option f ) ( some a ) =  f a :=
 begin
   trivial,
 end
@@ -28,18 +31,22 @@ end option
 
 namespace problem
 
-structure problem (α : Type*) [encodable α] :=
+structure problem (α : Type) extends fin_encoding α:=
 (yesinstance : α → Prop)
 
+namespace examples
 def is_even : problem ℕ := {
   yesinstance := λ n, n%2 = 0,
-  ..encodable.nat,
+  ..fin_encoding_nat_Γ₀₁
 }
+
+#check is_even.to_encoding.Γ
 
 def is_odd : problem ℕ := {
   yesinstance := λ n, n%2 = 1,
-  ..encodable.nat,
+  ..fin_encoding_nat_Γ₀₁
 }
+end examples
 
 def partrec {α σ} [encodable α] [encodable σ]
   (f : α →. σ) := nat.partrec (λ n,
@@ -47,31 +54,36 @@ def partrec {α σ} [encodable α] [encodable σ]
 
 def computable {α σ} [encodable α] [encodable σ] (f : α → σ) := partrec (f : α →. σ)
 
-namespace computable
-protected theorem id {α : Type*} [encodable α]: computable (@id α) := sorry
-end computable
-
-
-def many_one_reducible {α β} [encodable α] [encodable β] (P : problem α) (Q : problem β) :=
+def many_one_reducible_partrec {α β : Type} [encodable α] [encodable β] (P : problem α) (Q : problem β) :=
 ∃ f : α → β, computable f ∧ ∀ a, P.yesinstance a ↔ Q.yesinstance (f a)
--- ∃ f : α → β, computable f ∧ ∀ a, p a ↔ q (f a)
 
-infix ` ≤₀ `:1000 := many_one_reducible
+attribute [class] fin_encoding
 
-lemma is_even_red_to_is_odd: is_even ≤₀ is_odd := begin
+def many_one_reducible_tm_aux {α β : Type} (ea : fin_encoding α) (eb : fin_encoding β) (P : problem α) (Q : problem β) :=
+∃ f : α → β, @computable_by_tm_2 α β ea eb f ∧ ∀ a, P.yesinstance a ↔ Q.yesinstance (f a)
+
+def many_one_reducible_tm {α β : Type} (P : problem α) (Q : problem β) :=
+@many_one_reducible_tm_aux α β P.to_fin_encoding Q.to_fin_encoding P Q
+
+infix ` ≤₀ `:1000 := many_one_reducible_partrec
+infix ` ≤tm `:1000 := many_one_reducible_tm
+
+--TODO: give a theorem many_one_reducible_partrec → many_one_reducible_tm (under the right conditions of course)
+
+lemma is_even_red_to_is_odd: examples.is_even ≤tm examples.is_odd := begin
   use nat.succ,
   split,
-  exact computable.succ,
+  sorry,
   intro a,
   change a ≡ 0 [MOD 2] ↔ a+1≡1 [MOD 2],
   repeat {rw ← zmod.nat_coe_eq_nat_coe_iff},
   simp,
 end
 
-lemma is_odd_red_to_is_even: is_odd ≤₀ is_even := begin
+lemma is_odd_red_to_is_even: examples.is_odd ≤tm examples.is_even := begin
   use nat.succ,
   split,
-  exact computable.succ,
+  sorry,
   intro a,
   change a ≡ 1 [MOD 2] ↔ a+1≡0 [MOD 2],
   repeat {rw ← zmod.nat_coe_eq_nat_coe_iff},
@@ -87,12 +99,15 @@ lemma is_odd_red_to_is_even: is_odd ≤₀ is_even := begin
   ring,
 end
 
-@[refl]
-lemma many_one_reducible_refl {α} [encodable α] (P : problem α) :
-  P ≤₀ P := ⟨id, computable.id, by simp⟩
+#check @computable_by_tm_2
+#check problem _
 
--- @[trans]
--- theorem many_one_reducible.trans {α β γ} [encodable α] [encodable β] [encodable γ] {P : problem α} {Q : problem β} {R : problem γ} : P ≤₀ Q → Q ≤₀ R → P ≤₀ R
+@[refl]
+lemma many_one_reducible.refl {α : Type} (P : problem α) :
+  P ≤tm P := ⟨@id α, (@id_computable α P.to_fin_encoding), by simp⟩
+
+theorem many_one_reducible.trans {α β γ : Type} {P : problem α} {Q : problem β} {R : problem γ} : P ≤tm Q → Q ≤tm R → P ≤tm R
+:= sorry
 -- | ⟨f, c₁, h₁⟩ ⟨g, c₂, h₂⟩ := ⟨g ∘ f, c₂.comp c₁,
 --   λ a, ⟨λ h, by rwa [←h₂, ←h₁], λ h, by rwa [h₁, h₂]⟩⟩
 
@@ -223,7 +238,7 @@ def sat : problem (propositional_formula ℕ) :=
 { yesinstance := λ p, is_satisfiable p }
 
 @[derive [decidable_eq, inhabited]]
-inductive Γ' | blank | bit0 | bit1 | bra | ket | comma
+inductive Γ' : Type* | blank | bit0 | bit1 | bra | ket | comma
 
 def tr_pos_num : pos_num → list Γ'
 | pos_num.one := [Γ'.bit1]
@@ -242,7 +257,7 @@ parameters (Λ : Type*) [inhabited Λ]
 
 def machine := turing.TM0.machine Γ' Λ
 
-def list_to_list_blank {Γ : Type} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
+def list_to_list_blank {Γ : Type*} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
 @quotient.mk (list Γ) (turing.blank_rel.setoid Γ) L
 
 def run_tm0 {α : Type*} [encodable α] (tm : machine) (a : α) : roption (turing.list_blank Γ') :=
@@ -260,55 +275,15 @@ structure turing_machine_0 :=
 def solvable_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) : Prop :=
 ∃ (tm : turing_machine_0), @tm0.solved_by_turing_machine_0 tm.Λ tm.Λ_inhabited _ _ P tm.M
 
-namespace tm2
-section
-parameters {K : Type*} [decidable_eq K] -- Index type of stacks
-parameters (k₀ : K) -- input stack
-parameters (Γ : K → Type) -- Type of stack elements
-parameters (input_alphabet : Γ k₀ = Γ')
-parameters (Λ : Type*) -- Type of function labels
-parameters (Λ₀ : Λ) -- main function
-parameters (σ : Type*) -- Type of variable settings
-parameters (σ₀ : σ) -- begin state/variable
+def prototypical_problem : problem bool :=
+{ yesinstance := λ b, b = tt,
+  ..encoding_bool_Γ₀₁}
 
-def stmt' := turing.TM2.stmt Γ Λ σ
-def cfg' := turing.TM2.cfg Γ Λ σ
+def is_in_P {α : Type} (P : problem α) : Prop := P ≤tm prototypical_problem
 
-def machine := Λ → stmt'
+def leq_P_to_in_P {α β : Type} (P : problem α) (Q : problem β) (hpq: P ≤tm Q) (hq : is_in_P Q) : is_in_P P :=
+many_one_reducible.trans hpq hq
 
-#check input_alphabet
-
-include input_alphabet
-def init_nat (n : ℕ) : cfg':=
-{ l := option.some Λ₀,
-  var := σ₀,
-  stk := λ k, dite (k = k₀) (λ h,begin rw h,rw input_alphabet, exact tr_nat n end) (λ _,[])}
-
-def init_α {α : Type*} [encodable α] (a : α) : cfg' :=
-init_nat (encodable.encode a)
-
-def run_tm2 {α : Type*} [encodable α] (tm : machine) (a : α) : roption cfg' :=
-turing.eval (turing.TM2.step tm) (init_α a)
-
-def solved_by_turing_machine_2 {α : Type*} [encodable α] (P : problem α) (tm : machine) : Prop := (λ (a : α), run_tm2 tm a = roption.some (init_nat 1)) = P.yesinstance ∧ ∀ (a : α), run_tm2 tm a ≠ roption.none
-end
-end tm2
-
-structure turing_machine_2 :=
- {K : Type*}
- [K_decidable_eq : decidable_eq K]
- (k₀ : K)
- (Γ : K → Type)
- (input_alphabet : Γ k₀ = Γ')
- (Λ : Type*)
- (Λ₀ : Λ)
- (σ : Type*)
- (σ₀ : σ)
- (M : tm2.machine Γ Λ σ)
-
-#check @tm2.solved_by_turing_machine_2
-
-def solvable_by_turing_machine_2 {α : Type*} [encodable α] (P : problem α) : Prop :=
-∃ (tm : turing_machine_2), @tm2.solved_by_turing_machine_2 tm.K tm.K_decidable_eq tm.k₀ tm.Γ tm.input_alphabet tm.Λ tm.Λ₀ tm.σ tm.σ₀ _ _ P tm.M
+def prototypical_problem_in_P : is_in_P prototypical_problem := many_one_reducible.refl _
 
 end problem
