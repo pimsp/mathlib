@@ -30,6 +30,7 @@ end option
 -- Problem namespace
 
 namespace problem
+open encoding
 
 structure problem (α : Type) extends fin_encoding α:=
 (yesinstance : α → Prop)
@@ -237,43 +238,29 @@ def is_satisfiable {α : Type*} (p : propositional_formula α) : Prop :=
 def sat : problem (propositional_formula ℕ) :=
 { yesinstance := λ p, is_satisfiable p }
 
-@[derive [decidable_eq, inhabited]]
-inductive Γ' : Type* | blank | bit0 | bit1 | bra | ket | comma
+-- namespace tm0
+-- section
+-- parameters (Λ : Type*) [inhabited Λ]
 
-def tr_pos_num : pos_num → list Γ'
-| pos_num.one := [Γ'.bit1]
-| (pos_num.bit0 n) := Γ'.bit0 :: tr_pos_num n
-| (pos_num.bit1 n) := Γ'.bit1 :: tr_pos_num n
+-- def machine := turing.TM0.machine Γ₀₁ Λ
 
-def tr_num : num → list Γ'
-| num.zero := []
-| (num.pos n) := tr_pos_num n
+-- def list_to_list_blank {Γ : Type} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
+-- @quotient.mk (list Γ) (turing.blank_rel.setoid Γ) L
 
-def tr_nat (n : ℕ) : list Γ' := tr_num n
+-- def run_tm0 {α : Type} [encodable α] (tm : machine) (a : α) : roption (turing.list_blank Γ₀₁) :=
+-- turing.TM0.eval tm (encode_nat (encodable.encode a))
 
-namespace tm0
-section
-parameters (Λ : Type*) [inhabited Λ]
+-- def solved_by_turing_machine_0 {α : Type} [encodable α] (P : problem α) (tm : machine) : Prop := (λ (a : α), run_tm0 tm a = roption.some (list_to_list_blank [Γ₀₁.bit1])) = P.yesinstance ∧ ∀ (a : α), run_tm0 tm a ≠ roption.none
+-- end
+-- end tm0
 
-def machine := turing.TM0.machine Γ' Λ
+-- structure turing_machine_0 :=
+--  (Λ : Type*)
+--  [Λ_inhabited : inhabited Λ]
+--  (M : tm0.machine Λ)
 
-def list_to_list_blank {Γ : Type*} [inhabited Γ] (L : list Γ) : turing.list_blank Γ :=
-@quotient.mk (list Γ) (turing.blank_rel.setoid Γ) L
-
-def run_tm0 {α : Type*} [encodable α] (tm : machine) (a : α) : roption (turing.list_blank Γ') :=
-turing.TM0.eval tm (tr_nat (encodable.encode a))
-
-def solved_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) (tm : machine) : Prop := (λ (a : α), run_tm0 tm a = roption.some (list_to_list_blank [Γ'.bit1])) = P.yesinstance ∧ ∀ (a : α), run_tm0 tm a ≠ roption.none
-end
-end tm0
-
-structure turing_machine_0 :=
- (Λ : Type*)
- [Λ_inhabited : inhabited Λ]
- (M : tm0.machine Λ)
-
-def solvable_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) : Prop :=
-∃ (tm : turing_machine_0), @tm0.solved_by_turing_machine_0 tm.Λ tm.Λ_inhabited _ _ P tm.M
+-- def solvable_by_turing_machine_0 {α : Type*} [encodable α] (P : problem α) : Prop :=
+-- ∃ (tm : turing_machine_0), @tm0.solved_by_turing_machine_0 tm.Λ tm.Λ_inhabited _ _ P tm.M
 
 def prototypical_problem : problem bool :=
 { yesinstance := λ b, b = tt,

@@ -2,6 +2,7 @@ import data.fintype.basic
 import data.num.lemmas
 import tactic
 
+namespace encoding
 structure encoding (α : Type) :=
 (Γ : Type)
 (encode : α → list Γ)
@@ -183,3 +184,5 @@ def encoding_bool_Γ₀₁ : fin_encoding bool :=
   decode := option.some ∘ decode_bool,
   encodek := begin funext, simp [encodek_bool x], end,
   Γ_fin := Γ₀₁_fin }
+
+end encoding
